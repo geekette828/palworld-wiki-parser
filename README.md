@@ -30,6 +30,7 @@ Palworld Parser/
 ├── pywikibot_tools/
 │   ├── page_audit_tools/
 │   │   ├── active_skill_page_audit.py      → Checks the wiiki for which active skills have pages, and outputs a list of missing active skills.
+│   │   ├── item_page_audit.py              → Checks the wiiki for which items has pages, and outputs a list of missing items.
 │   │   ├── pal_page_audit.py               → Checks the wiiki for which pals have pages, nd outputs a list of missing pals.
 │   │   └── passive_skill_page_audit.py     → Checks the wiiki for which passive skills have pages, and outputs a list of missing passives.
 │   ├── create_page_active_skill.py         → Creates missing active skill pages.
@@ -70,6 +71,7 @@ DataTable/
 ├── Incident/
 ├── Invader/
 ├── Item/
+│   └── DT_ItemDataTable.json               → Raw Item Data
 ├── ItemShop/
 ├── Lab/
 ├── MapObject/
@@ -92,7 +94,8 @@ DataTable/
 ├── Tutorial/
 ├── UI/
 ├── Waza/
-│   └── DT_WazaMasterLevel                  → Raw Active Skill Data
+│   ├── DT_WazaDataTable.json               → Raw Active Skill Data
+│   └── DT_WazaMasterLevel.json             → Raw Pal Active Skill Learnset Data
 ├── WorldMapAreaData/
 ├── WorldMapUIData/
 └── WorldSecurity/

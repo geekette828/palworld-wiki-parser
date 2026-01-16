@@ -3,6 +3,7 @@ __pycache__/
 **/__pycache__/
 *.pyc
 Palworld Workspace.code-workspace
+.gitignore
 
 _input/
 _output/
@@ -10,6 +11,7 @@ config/constants.py
 
 pwb/logs
 pwb/apicache
+pwb/throttle.ctrl
 pwb/pywikibot-Geekette828.lwp
 pwb/user-config.py
 pwb/user-password.py
