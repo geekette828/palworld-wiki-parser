@@ -25,3 +25,16 @@ WORK_SUITABILITY_MAP = {
     "WorkSuitability_Transport": "Transporting",
     "WorkSuitability_MonsterFarm": "Farming",
 }
+
+ACTIVE_SKILL_STATUS_EFFECT_MAP = {
+    "Burn": "Burn",
+    "Darkness": "",
+    "Electric": "Electrify",
+    "Electrical": "Electrify",
+    "Freeze": "Freeze",
+    "IvyCling": "Ivy-Covered",
+    "Muddy": "Muddy",
+    "Poison": "Poison",
+    "Stun": "Stun",
+    "Wetness": "Soak",
+}

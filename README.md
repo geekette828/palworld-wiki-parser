@@ -1,5 +1,5 @@
 Collection of Parser Items for the Palworld wiki found at: https://palworld.wiki.gg/ <br>
-Putting these into output files, so we can do a compare between patches, and only update pages that need it.
+Reads the data, and outputs files into a format useable by the wiki. Uses pywikibot to auto create pages where applicable.
 
 # File Structure
 ```
