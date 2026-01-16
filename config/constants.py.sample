@@ -1,0 +1,30 @@
+ROOT_DIRECTORY = r"YOUR PATH/TO/Sun Haven Parser"
+DEBUG_DIRECTORY = r"YOUR PATH/TO/Sun Haven Parser/.hidden/debug_output"
+
+PATCH_VERSION = "x.x.x"  # Whatever is current
+
+INPUT_DIRECTORY = f"{ROOT_DIRECTORY}/_input/{PATCH_VERSION}"
+OUTPUT_DIRECTORY = f"{ROOT_DIRECTORY}/_output/{PATCH_VERSION}"
+
+EN_TEXT_DIRECTORY = f"{INPUT_DIRECTORY}/en/Pal/DataTable/Text"
+
+EN_PAL_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_PalNameText_Common.json"
+EN_ITEM_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_ItemNameText_Common.json"
+EN_SKILL_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_SkillNameText_Common.json"
+EN_SKILL_DESC_FILE = f"{EN_TEXT_DIRECTORY}/DT_SkillDescText_Common.json"
+EN_TECH_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_TechnologyNameText_Common.json"
+EN_STATUS_EFFECT_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_StatusEffectNameText_Common.json"
+EN_BUILD_OBJECT_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_BuildObjectNameText_Common.json"
+
+PWB_SETTINGS = {
+    "BATCH_SIZE": 50,
+    "SLEEP_INTERVAL": 8,
+    "NULL_EDIT_SLEEP_INTERVAL": 10,
+    "MAX_RETRIES": 5,
+    "THROTTLE": 5,
+    "USER_AGENT": "Palworld Wiki User (https://sunhaven.wiki.gg/wiki/User:YOURUSERNAMEHERE)",
+}
+
+ADDITIONAL_PATHS = {
+    "PWB": r"YOUR PATH/TO/PWB"
+}

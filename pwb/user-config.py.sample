@@ -1,0 +1,19 @@
+import warnings
+import os
+
+hidden_dir = os.path.join(os.getcwd(), ".hidden")
+os.makedirs(hidden_dir, exist_ok=True)
+
+apicache = os.path.join(hidden_dir, "apicache.db")
+
+warnings.filterwarnings("ignore", category=UserWarning, module='pywikibot.config')
+
+family = 'sunhaven'
+mylang = 'en'
+
+usernames = {
+    'sunhaven': {
+        'en': 'YourUserNameHere'
+    }
+}
+password_file = "user-password.py"
