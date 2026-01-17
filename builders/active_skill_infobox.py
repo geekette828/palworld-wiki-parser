@@ -268,7 +268,7 @@ def build_active_skill_infobox_model(english_skill_name: str) -> ActiveSkillInfo
     }
 
     if status_pairs:
-        # Only supports 2 per your template fields
+        # Only supports 2 per template fields
         (status1, chance1) = status_pairs[0]
         model["status"] = status1
         model["chance"] = chance1

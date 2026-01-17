@@ -67,7 +67,6 @@ def _clean_paldeck_description(raw: str, en: EnglishText, row: Optional[dict]) -
     # Must resolve BEFORE clean_english_text strips tags
     s = _resolve_character_name_tags(s, en)
 
-    # Reuse your existing cleaner (same behavior as en.get())
     s = clean_english_text(s, row)
 
     # Compact whitespace for stable output
@@ -187,7 +186,7 @@ def build_pal_page_sections(
     if not isinstance(normal, dict) or not isinstance(boss, dict):
         return {}
 
-    pal_name = en.get_pal_name(base)  # uses your localization lookup :contentReference[oaicite:3]{index=3}
+    pal_name = en.get_pal_name(base)  # uses localization lookup :contentReference[oaicite:3]{index=3}
     ele1 = _get_primary_element(rows, base)
 
     sections: Dict[str, str] = {}
@@ -391,7 +390,7 @@ def build_pal_page_from_files(
     waza_by_pal_id = build_waza_master_index(waza_rows)
 
     drop_data = load_json(DROP_INPUT_FILE)
-    drop_rows = extract_datatable_rows(drop_data, source="DT_PalDropItem")  # your datatable util :contentReference[oaicite:4]{index=4}
+    drop_rows = extract_datatable_rows(drop_data, source="DT_PalDropItem")
     drops_by_character_id = index_drop_rows_by_character_id(drop_rows)
 
     return build_pal_page_wikitext(
