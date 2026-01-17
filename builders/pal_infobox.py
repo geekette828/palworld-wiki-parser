@@ -243,8 +243,6 @@ def build_pal_order(rows: dict) -> List[str]:
 
 
 _CHARACTERNAME_TAG_RE = re.compile(r"<characterName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
-
-
 def _replace_charactername_tags(text: str, english: EnglishText) -> str:
     s = str(text or "")
 
@@ -255,6 +253,26 @@ def _replace_charactername_tags(text: str, english: EnglishText) -> str:
 
     return _CHARACTERNAME_TAG_RE.sub(repl, s)
 
+_ITEMNAME_TAG_RE = re.compile(r"<itemName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
+_MAPOBJECTNAME_TAG_RE = re.compile(r"<mapObjectName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
+def _replace_item_and_object_tags(text: str, english: EnglishText) -> str:
+    s = str(text or "")
+
+    def item_repl(m: re.Match) -> str:
+        item_id = (m.group(1) or "").strip()
+        return english.get_item_name(item_id) or item_id
+
+    def object_repl(m: re.Match) -> str:
+        obj_id = (m.group(1) or "").strip()
+
+        if obj_id == "MonsterFarm":
+            return "the ranch"
+
+        return obj_id
+
+    s = _ITEMNAME_TAG_RE.sub(item_repl, s)
+    s = _MAPOBJECTNAME_TAG_RE.sub(object_repl, s)
+    return s
 
 def build_pal_infobox_wikitext(
     base: str,
@@ -301,6 +319,7 @@ def build_pal_infobox_wikitext(
     partner_skill_desc_key = f"PAL_FIRST_SPAWN_DESC_{base}"
     partner_skill_desc_raw = en.get_raw(constants.EN_PAL_ACTIVATE_FILE, partner_skill_desc_key)
     partner_skill_desc_raw = _replace_charactername_tags(partner_skill_desc_raw, en)
+    partner_skill_desc_raw = _replace_item_and_object_tags(partner_skill_desc_raw, en)
     partner_skill_desc = clean_english_text(partner_skill_desc_raw).replace("\r", "").replace("\n", " ").strip()
 
     out.append(f"|partner_skill_name = {partner_skill_name}")
