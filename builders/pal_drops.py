@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from typing import Any, Dict, List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -8,10 +9,8 @@ from config import constants
 from utils.json_datatable_utils import extract_datatable_rows
 from utils.english_text_utils import EnglishText
 
-# Define paths
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
 drop_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalDropItem.json")
-output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "pal_drops.txt")
 
 
 def load_json(path: str):
@@ -19,7 +18,7 @@ def load_json(path: str):
         return json.load(f)
 
 
-def zukan_no(zukan_index, zukan_suffix):
+def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
     if zukan_index is None:
         return ""
     try:
@@ -126,19 +125,7 @@ def index_drop_rows_by_character_id(drop_rows: dict) -> dict:
     return by_id
 
 
-def main():
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-
-    en = EnglishText()
-
-    param_data = load_json(param_input_file)
-    drop_data = load_json(drop_input_file)
-
-    param_rows = extract_datatable_rows(param_data, source="DT_PalMonsterParameter")
-    drop_rows = extract_datatable_rows(drop_data, source="DT_PalDropItem")
-
-    drops_by_character_id = index_drop_rows_by_character_id(drop_rows)
-
+def build_pal_order(param_rows: dict) -> List[str]:
     pal_order = []
     for key, row in (param_rows or {}).items():
         if not isinstance(key, str):
@@ -158,31 +145,57 @@ def main():
         pal_order.append((pal_no, base))
 
     pal_order.sort(key=lambda x: (int(x[0][:3]), x[0][3:]))
-    base_names = [base for _, base in pal_order]
+    return [base for _, base in pal_order]
 
-    output_lines = []
 
+def build_pal_drop_wikitext(
+    base: str,
+    *,
+    param_rows: dict,
+    drops_by_character_id: dict,
+    en: EnglishText,
+) -> str:
+    pal_display_name = get_pal_display_name(en, base)
+
+    normal_drop_row = drops_by_character_id.get(base)
+    alpha_drop_row = drops_by_character_id.get(f"BOSS_{base}")
+
+    normal_text = extract_drop_list(normal_drop_row, en) if normal_drop_row else ""
+    alpha_text = extract_drop_list(alpha_drop_row, en) if alpha_drop_row else ""
+
+    out: List[str] = []
+    out.append("{{Pal Drop")
+    out.append(f"|palName = {pal_display_name}")
+    out.append(f"|normal_drops = {normal_text}")
+    out.append(f"|alpha_drops = {alpha_text}")
+    out.append("}}")
+
+    return "\n".join(out).rstrip() + "\n"
+
+
+def build_all_pal_drops_text(*, include_blank_line: bool = True) -> str:
+    en = EnglishText()
+
+    param_data = load_json(param_input_file)
+    drop_data = load_json(drop_input_file)
+
+    param_rows = extract_datatable_rows(param_data, source="DT_PalMonsterParameter")
+    drop_rows = extract_datatable_rows(drop_data, source="DT_PalDropItem")
+
+    drops_by_character_id = index_drop_rows_by_character_id(drop_rows)
+    base_names = build_pal_order(param_rows)
+
+    blocks: List[str] = []
     for base in base_names:
-        pal_display_name = get_pal_display_name(en, base)
+        block = build_pal_drop_wikitext(
+            base,
+            param_rows=param_rows,
+            drops_by_character_id=drops_by_character_id,
+            en=en,
+        )
+        if block:
+            blocks.append(block)
+            if include_blank_line:
+                blocks.append("\n")
 
-        normal_drop_row = drops_by_character_id.get(base)
-        alpha_drop_row = drops_by_character_id.get(f"BOSS_{base}")
-
-        normal_text = extract_drop_list(normal_drop_row, en) if normal_drop_row else ""
-        alpha_text = extract_drop_list(alpha_drop_row, en) if alpha_drop_row else ""
-
-        output_lines.append("{{Pal Drop")
-        output_lines.append(f"|palName = {pal_display_name}")
-        output_lines.append(f"|normal_drops = {normal_text}")
-        output_lines.append(f"|alpha_drops = {alpha_text}")
-        output_lines.append("}}")
-        output_lines.append("")
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(output_lines).rstrip() + "\n")
-
-    print(f"✅ Wrote: {output_file}")
-
-
-if __name__ == "__main__":
-    main()
+    return "".join(blocks).rstrip() + "\n"

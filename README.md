@@ -4,47 +4,59 @@ Reads the data, and outputs files into a format useable by the wiki. Uses pywiki
 # File Structure
 ```
 Palworld Parser/
-├── _output/
-├── _input/
+├── _output/                                → Generated output files (wiki-formatted text, previews, logs)
+├── _input/                                 → Raw data extracted from the Palworld data-mine
 │
 ├── config/
-│   ├── constants.py.sample
-│   └── name_map.py
+│   ├── constants.py.sample                 → Paths & configuration template
+│   └── name_map.py                         → Canonical normalization maps 
 │
-├── format_tools/
+├── builders/                               → Canonical builders
 │   ├── active_skill_infobox.py
-│   ├── pal_breeding.py
-│   ├── pal_drops.py
+│   ├── passive_skill_infobox.py
 │   ├── pal_infobox.py
-│   └── passive_skill_infobox.py
+│   ├── pal_breeding.py
+│   └── pal_drops.py
 │
-├── pwb/                                    → Pywikibot engine, set up for palworld.wiki.gg
+├── exports/                                → Mass-export scripts (call builders, write files)
+│   ├── export_active_skill_infoboxes.py    → Outputs all Active Skill infoboxes
+│   ├── export_passive_skill_infoboxes.py   → Outputs all Passive Skill infoboxes
+│   ├── export_pal_infoboxes.py             → Outputs all Pal infoboxes
+│   ├── export_pal_breeding.py              → Outputs all Pal breeding data
+│   └── export_pal_drops.py                 → Outputs all Pal drop data
+│
+├── pwb/                                    → Pywikibot engine (palworld.wiki.gg)
 │   ├── pwb.py
 │   ├── pywikibot/
 │   ├── scripts/
 │   ├── families/
 │   │   └── palworld_family.py
-│   ├── user-config.py                      → Your wiki credentials - update this
-│   └── user-password.py                    → Your wiki credentials - update this
+│   ├── user-config.py                      → Wiki credentials (local only)
+│   └── user-password.py                    → Wiki credentials (local only)
 │
 ├── pywikibot_tools/
-│   ├── page_audit_tools/
-│   │   ├── active_skill_page_audit.py      → Checks the wiiki for which active skills have pages, and outputs a list of missing active skills.
-│   │   ├── item_page_audit.py              → Checks the wiiki for which items has pages, and outputs a list of missing items.
-│   │   ├── pal_page_audit.py               → Checks the wiiki for which pals have pages, nd outputs a list of missing pals.
-│   │   └── passive_skill_page_audit.py     → Checks the wiiki for which passive skills have pages, and outputs a list of missing passives.
-│   ├── create_page_active_skill.py         → Creates missing active skill pages.
-│   ├── create_page_item.py                 → Creates missing item pages.
-│   ├── create_page_pal.py                  → Creates missing pal pages.
-│   └── create_page_passive_skill.py        → Creates missing passive skill pages.
+│   ├── page_audit_tools/                   → Wiki audits (find missing pages)
+│   │   ├── active_skill_page_audit.py
+│   │   ├── item_page_audit.py
+│   │   ├── pal_page_audit.py
+│   │   └── passive_skill_page_audit.py
+│   │
+│   ├── create_pages/                       → Page creation scripts
+│   │   ├── create_page_active_skill.py
+│   │   ├── create_page_item.py
+│   │   ├── create_page_pal.py
+│   │   └── create_page_passive_skill.py
+│   │
+│   └── page_compare_tools/                 → Page comparison & fix scripts (future)
 │
 ├── utils/
 │   ├── console_utils.py
 │   ├── english_text_utils.py
-│   ├── jason_datatable_utils.py
-│   ├── name_utils.py
+│   ├── json_datatable_utils.py
+│   └── name_utils.py
+│
 ├── .gitignore
-├── pwb.ps1                                 → Recommended launcher script for pywikibot stuff
+├── pwb.ps1                                 → Recommended launcher for Pywikibot scripts
 └── README.md
 ```
 

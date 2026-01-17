@@ -1,24 +1,25 @@
 import os
 import sys
 import pywikibot
-import importlib.util
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from config import constants
 from typing import Dict, List
 from pathlib import Path
+from builders.passive_skill_infobox import build_infobox_map
 from utils.console_utils import force_utf8_stdout
 force_utf8_stdout()
 
 preview_output_directory = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "Passive Skill Pages")
 missing_pages_file = os.path.join(constants.OUTPUT_DIRECTORY, "Pywikibot", "Missing_Passive_Skills.txt")
 
-DRY_RUN = False
+DRY_RUN = True
 OVERWRITE_EXISTING = True
 
 # Only used when DRY_RUN = True
 TEST_PAGES = [
+    "Celestial Emperor"
 ]
 
 def read_text(path: str) -> str:
@@ -175,30 +176,6 @@ def build_passive_skill_summary_from_effect(effect: str) -> str:
         )
 
     return "is a passive skill with unique effects that influence a Pal's performance."
-
-def load_passive_skill_infobox_module():
-    try:
-        from format_tools import passive_skill_infobox as mod  # type: ignore
-        return mod
-    except Exception:
-        script_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "format_tools", "passive_skill_infobox.py")
-        )
-        if not os.path.exists(script_path):
-            raise FileNotFoundError(f"Could not find passive_skill_infobox.py at: {script_path}")
-
-        spec = importlib.util.spec_from_file_location("passive_skill_infobox", script_path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Could not load module spec for: {script_path}")
-
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-
-passive_skill_infobox = load_passive_skill_infobox_module()
-
-def build_infobox_map() -> Dict[str, str]:
-    return passive_skill_infobox.build_infobox_map()
 
 def build_page_text(skill_name: str, infobox_wikitext: str) -> str:
     skill_name = normalize_title(skill_name)

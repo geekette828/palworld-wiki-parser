@@ -1,16 +1,17 @@
 import os
 import sys
 import json
+from typing import Any, Dict, List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from config.name_map import ELEMENT_NAME_MAP
 from utils.json_datatable_utils import extract_datatable_rows
 from utils.english_text_utils import EnglishText
 
-# Define paths
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
-output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "pal_breeding.txt")
+
 
 EGG_SIZE_BY_RARITY = [
     (1, 4, "Regular"),
@@ -31,7 +32,7 @@ EGG_ELEMENT_MAP = {
 }
 
 
-def egg_size_from_rarity(rarity):
+def egg_size_from_rarity(rarity: Any) -> str:
     if rarity is None:
         return ""
     try:
@@ -49,7 +50,7 @@ def egg_size_from_rarity(rarity):
     return ""
 
 
-def egg_type_from_element(element):
+def egg_type_from_element(element: Any) -> str:
     if not element:
         return ""
 
@@ -60,26 +61,15 @@ def egg_type_from_element(element):
     return EGG_ELEMENT_MAP.get(e, "")
 
 
-def normalize_element(element):
+def normalize_element(element: Any) -> str:
     if not element:
         return ""
 
     e = str(element).strip()
-
-    lower = e.lower()
-    if lower == "normal":
-        return "Neutral"
-    if lower == "leaf":
-        return "Grass"
-    if lower == "electricity":
-        return "Electric"
-    if lower == "earth":
-        return "Ground"
-
-    return e
+    return ELEMENT_NAME_MAP.get(e, e)
 
 
-def after_double_colon(v):
+def after_double_colon(v: Any) -> str:
     if v is None:
         return ""
     s = str(v)
@@ -88,7 +78,7 @@ def after_double_colon(v):
     return s
 
 
-def build_breeding_egg(row):
+def build_breeding_egg(row: dict) -> str:
     if not isinstance(row, dict):
         return ""
 
@@ -107,7 +97,7 @@ def build_breeding_egg(row):
     return f"{size} {egg_type} Egg"
 
 
-def fmt(v):
+def fmt(v: Any) -> str:
     if v is None:
         return ""
     if isinstance(v, float):
@@ -115,7 +105,7 @@ def fmt(v):
     return str(v)
 
 
-def zukan_no(zukan_index, zukan_suffix):
+def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
     if zukan_index is None:
         return ""
     try:
@@ -134,21 +124,7 @@ def zukan_no(zukan_index, zukan_suffix):
     return f"{base}{suf}"
 
 
-def get_pal_display_name(en: EnglishText, pal_id: str) -> str:
-    pal_id = str(pal_id).strip()
-    return en.get_pal_name(pal_id) or pal_id
-
-
-def main():
-    with open(param_input_file, "r", encoding="utf-8") as f:
-        param_data = json.load(f)
-
-    rows = extract_datatable_rows(param_data, source="DT_PalMonsterParameter")
-
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-
-    en = EnglishText()
-
+def build_pal_order(rows: dict) -> List[str]:
     pal_order = []
 
     for key, row in rows.items():
@@ -169,41 +145,54 @@ def main():
         pal_order.append((pal_no, base))
 
     pal_order.sort(key=lambda x: (int(x[0][:3]), x[0][3:]))
-    base_names = [base for _, base in pal_order]
+    return [base for _, base in pal_order]
 
-    output_lines = []
 
+def build_pal_breeding_wikitext(base: str, *, rows: dict, en: EnglishText, include_header: bool = True) -> str:
+    normal = rows.get(base)
+    boss = rows.get(f"BOSS_{base}")
+
+    if not isinstance(normal, dict) or not isinstance(boss, dict):
+        return ""
+
+    pal_display_name = en.get_pal_name(base) or base
+
+    out: List[str] = []
+
+    if include_header:
+        out.append(f"# {pal_display_name} ({base})")
+
+    out.append("==Breeding==")
+    out.append(
+        "[[Breeding]] allows Pals to be paired together to produce offspring, with outcomes determined by various breeding statistics and special parent combinations. "
+    )
+    out.append("{{Breeding")
+    out.append(f"|breeding_rank = {fmt(normal.get('CombiRank'))}")
+    out.append(f"|male_probability = {fmt(normal.get('MaleProbability'))}")
+    out.append(f"|combi_duplicate_priority = {fmt(normal.get('CombiDuplicatePriority'))}")
+    out.append(f"|egg = {build_breeding_egg(normal)}")
+    out.append("|uniqueCombos = ")
+    out.append("}}")
+    out.append("")
+    out.append("")
+
+    return "\n".join(out).rstrip() + "\n"
+
+
+def build_all_pal_breeding_text(*, include_headers: bool = True) -> str:
+    with open(param_input_file, "r", encoding="utf-8") as f:
+        param_data = json.load(f)
+
+    rows = extract_datatable_rows(param_data, source="DT_PalMonsterParameter")
+    en = EnglishText()
+
+    base_names = build_pal_order(rows)
+
+    blocks: List[str] = []
     for base in base_names:
-        normal = rows.get(base)
-        boss = rows.get(f"BOSS_{base}")
+        block = build_pal_breeding_wikitext(base, rows=rows, en=en, include_header=include_headers)
+        if block:
+            blocks.append(block)
+            blocks.append("\n")
 
-        if not isinstance(normal, dict) or not isinstance(boss, dict):
-            continue
-
-        pal_display_name = get_pal_display_name(en, base)
-
-        # Header comment so it's easy to find blocks
-        output_lines.append(f"# {pal_display_name} ({base})")
-
-        output_lines.append("==Breeding==")
-        output_lines.append(
-            "[[Breeding]] allows Pals to be paired together to produce offspring, with outcomes determined by various breeding statistics and special parent combinations. "
-        )
-        output_lines.append("{{Breeding")
-        output_lines.append(f"|breeding_rank = {fmt(normal.get('CombiRank'))}")
-        output_lines.append(f"|male_probability = {fmt(normal.get('MaleProbability'))}")
-        output_lines.append(f"|combi_duplicate_priority = {fmt(normal.get('CombiDuplicatePriority'))}")
-        output_lines.append(f"|egg = {build_breeding_egg(normal)}")
-        output_lines.append("|uniqueCombos = ")
-        output_lines.append("}}")
-        output_lines.append("")
-        output_lines.append("")
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(output_lines))
-
-    print(f"✅ Wrote pal breeding data to: {output_file}")
-
-
-if __name__ == "__main__":
-    main()
+    return "".join(blocks).rstrip() + "\n"

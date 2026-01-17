@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+from typing import Dict, List, Optional, Tuple, Any
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -10,14 +11,11 @@ from utils.json_datatable_utils import extract_datatable_rows
 from utils.english_text_utils import EnglishText
 
 
-# Define paths
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
 active_skill_input_file = os.path.join(constants.INPUT_DIRECTORY, "Waza", "DT_WazaMasterLevel.json")
-output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "pal_infobox.txt")
 
 
 STATS_MAP = {
-    # Core
     "Hp": "hp",
     "ShotAttack": "attack",
     "Defense": "defense",
@@ -26,7 +24,6 @@ STATS_MAP = {
     "Friendship_ShotAttack": "trust_attack",
     "Friendship_Defense": "trust_defense",
     "Friendship_CraftSpeed": "trust_work_speed",
-    # Movement
     "Stamina": "stamina",
     "SlowWalkSpeed": "slow_walk_speed",
     "WalkSpeed": "walk_speed",
@@ -35,7 +32,6 @@ STATS_MAP = {
     "TransportSpeed": "transport_speed",
     "SwimSpeed": "swim_speed",
     "SwimDashSpeed": "swim_dash_speed",
-    # Encounter scaling
     "ExpRatio": "exp_ratio",
     "EnemyMaxHPRate": "max_hp_rate",
     "EnemyReceiveDamageRate": "receive_damage_rate",
@@ -68,16 +64,14 @@ ALPHA_ELIGIBLE_PARAMS = {
 }
 
 
-def normalize_element(element):
+def normalize_element(element: Any) -> str:
     if not element:
         return ""
-
     e = str(element).strip()
-    # Prefer centralized mapping (name_map)
     return ELEMENT_NAME_MAP.get(e, e)
 
 
-def bool_to_yes_no(v):
+def bool_to_yes_no(v: Any) -> str:
     if v is True:
         return "True"
     if v is False:
@@ -85,7 +79,7 @@ def bool_to_yes_no(v):
     return ""
 
 
-def sell_price_from_buy(v):
+def sell_price_from_buy(v: Any) -> str:
     if v is None:
         return ""
     try:
@@ -97,11 +91,10 @@ def sell_price_from_buy(v):
 def load_rows(path: str, *, source: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-
     return extract_datatable_rows(data, source=source)
 
 
-def fmt(v):
+def fmt(v: Any) -> str:
     if v is None:
         return ""
     if isinstance(v, float):
@@ -109,7 +102,7 @@ def fmt(v):
     return str(v)
 
 
-def after_double_colon(v):
+def after_double_colon(v: Any) -> str:
     if v is None:
         return ""
     s = str(v)
@@ -118,7 +111,7 @@ def after_double_colon(v):
     return s
 
 
-def zukan_no(zukan_index, zukan_suffix):
+def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
     if zukan_index is None:
         return ""
     try:
@@ -137,7 +130,7 @@ def zukan_no(zukan_index, zukan_suffix):
     return f"{base}{suf}"
 
 
-def collect_passives(row: dict, en: EnglishText):
+def collect_passives(row: dict, en: EnglishText) -> List[str]:
     passives = []
     for i in range(1, 5):
         key = f"PassiveSkill{i}"
@@ -147,13 +140,11 @@ def collect_passives(row: dict, en: EnglishText):
         s = str(v).strip()
         if s == "" or s.lower() == "none":
             continue
-
         passives.append(en.get_passive_name(s) or s)
-
     return passives
 
 
-def build_work_suitability(row: dict):
+def build_work_suitability(row: dict) -> str:
     parts = []
     for json_key, label in WORK_SUITABILITY_MAP.items():
         v = row.get(json_key)
@@ -169,8 +160,8 @@ def build_work_suitability(row: dict):
     return "; ".join(parts)
 
 
-def build_waza_master_index(waza_rows: dict):
-    by_pal_id = {}
+def build_waza_master_index(waza_rows: dict) -> Dict[str, List[Tuple[int, str]]]:
+    by_pal_id: Dict[str, List[Tuple[int, str]]] = {}
     for _, row in (waza_rows or {}).items():
         if not isinstance(row, dict):
             continue
@@ -199,7 +190,7 @@ def build_waza_master_index(waza_rows: dict):
     return by_pal_id
 
 
-def build_active_skills(monster_row_key: str, monster_row: dict, waza_by_pal_id: dict, en: EnglishText):
+def build_active_skills(monster_row_key: str, monster_row: dict, waza_by_pal_id: dict, en: EnglishText) -> str:
     if not isinstance(monster_row, dict):
         return ""
 
@@ -227,17 +218,8 @@ def build_active_skills(monster_row_key: str, monster_row: dict, waza_by_pal_id:
     )
 
 
-def main():
-    rows = load_rows(param_input_file, source="DT_PalMonsterParameter")
-    waza_rows = load_rows(active_skill_input_file, source="DT_WazaMasterLevel")
-
-    waza_by_pal_id = build_waza_master_index(waza_rows)
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-
-    en = EnglishText()
-
+def build_pal_order(rows: dict) -> List[str]:
     pal_order = []
-
     for key, row in rows.items():
         if not isinstance(key, str):
             continue
@@ -256,72 +238,96 @@ def main():
         pal_order.append((pal_no, base))
 
     pal_order.sort(key=lambda x: (int(x[0][:3]), x[0][3:]))
-    base_names = [base for _, base in pal_order]
+    return [base for _, base in pal_order]
 
-    output_lines = []
 
+def build_pal_infobox_wikitext(
+    base: str,
+    *,
+    rows: dict,
+    waza_by_pal_id: dict,
+    en: EnglishText,
+    include_header: bool = True,
+) -> str:
+    normal = rows.get(base)
+    boss = rows.get(f"BOSS_{base}")
+
+    if not isinstance(normal, dict) or not isinstance(boss, dict):
+        return ""
+
+    pal_display_name = en.get_pal_name(base) or base
+
+    out: List[str] = []
+
+    if include_header:
+        out.append(f"# {pal_display_name} ({base})")
+
+    out.append("{{Pal")
+    out.append(f"|no = {zukan_no(normal.get('ZukanIndex'), normal.get('ZukanIndexSuffix'))}")
+    out.append("|alpha_title = ")
+
+    ele1 = normalize_element(after_double_colon(normal.get("ElementType1")))
+    ele2_raw = normalize_element(after_double_colon(normal.get("ElementType2")))
+    ele2 = "" if ele2_raw.strip().lower() == "none" else ele2_raw
+
+    out.append(f"|ele1 = {ele1}")
+    out.append(f"|ele2 = {ele2}")
+
+    size_raw = normal.get("Size")
+    pal_size = after_double_colon(size_raw) if size_raw else ""
+    out.append(f"|pal_size = {pal_size}")
+
+    out.append("|partner_skill_name = ")
+    out.append("|partner_skill_desc = ")
+    out.append("|partner_skill_icon = ")
+
+    out.append("|pal_gear = ")
+    out.append(f"|work_suitability = {build_work_suitability(normal)}")
+
+    out.append("<!-- Basics -->")
+    out.append(f"|hunger = {fmt(normal.get('FoodAmount'))}")
+    out.append(f"|nocturnal = {bool_to_yes_no(normal.get('Nocturnal'))}")
+    out.append(f"|sell_price = {sell_price_from_buy(normal.get('Price'))}")
+
+    out.append("<!-- Skills -->")
+    passives = collect_passives(normal, en)
+    out.append(f"|passive_skills = {'; '.join(passives) if passives else ''}")
+    out.append(f"|active_skills = {build_active_skills(base, normal, waza_by_pal_id, en)}")
+
+    out.append("<!-- Stats -->")
+    for json_key, param in STATS_MAP.items():
+        normal_val = normal.get(json_key)
+        boss_val = boss.get(json_key)
+
+        out.append(f"|{param} = {fmt(normal_val)}")
+
+        if param in ALPHA_ELIGIBLE_PARAMS and normal_val != boss_val:
+            out.append(f"|alpha_{param} = {fmt(boss_val)}")
+
+    out.append("}}")
+    return "\n".join(out).rstrip() + "\n"
+
+
+def build_all_pal_infoboxes_text(*, include_headers: bool = True) -> str:
+    rows = load_rows(param_input_file, source="DT_PalMonsterParameter")
+    waza_rows = load_rows(active_skill_input_file, source="DT_WazaMasterLevel")
+
+    waza_by_pal_id = build_waza_master_index(waza_rows)
+    en = EnglishText()
+
+    base_names = build_pal_order(rows)
+
+    blocks: List[str] = []
     for base in base_names:
-        normal = rows.get(base)
-        boss = rows.get(f"BOSS_{base}")
+        block = build_pal_infobox_wikitext(
+            base,
+            rows=rows,
+            waza_by_pal_id=waza_by_pal_id,
+            en=en,
+            include_header=include_headers,
+        )
+        if block:
+            blocks.append(block)
+            blocks.append("\n")
 
-        if not isinstance(normal, dict) or not isinstance(boss, dict):
-            continue
-
-        pal_display_name = en.get_pal_name(base) or base
-
-        output_lines.append(f"# {pal_display_name} ({base})")
-        output_lines.append("{{Pal/sandbox")
-
-        output_lines.append(f"|no = {zukan_no(normal.get('ZukanIndex'), normal.get('ZukanIndexSuffix'))}")
-        output_lines.append("|alpha_title = ")
-
-        ele1 = normalize_element(after_double_colon(normal.get("ElementType1")))
-        ele2_raw = normalize_element(after_double_colon(normal.get("ElementType2")))
-        ele2 = "" if ele2_raw.strip().lower() == "none" else ele2_raw
-
-        output_lines.append(f"|ele1 = {ele1}")
-        output_lines.append(f"|ele2 = {ele2}")
-
-        size_raw = normal.get("Size")
-        pal_size = after_double_colon(size_raw) if size_raw else ""
-        output_lines.append(f"|pal_size = {pal_size}")
-
-        output_lines.append("|partner_skill_name = ")
-        output_lines.append("|partner_skill_desc = ")
-        output_lines.append("|partner_skill_icon = ")
-
-        output_lines.append("|pal_gear = ")
-        # Keep name-map conversion for work suitability
-        output_lines.append(f"|work_suitability = {build_work_suitability(normal)}")
-
-        output_lines.append("<!-- Basics -->")
-        output_lines.append(f"|hunger = {fmt(normal.get('FoodAmount'))}")
-        output_lines.append(f"|nocturnal = {bool_to_yes_no(normal.get('Nocturnal'))}")
-        output_lines.append(f"|sell_price = {sell_price_from_buy(normal.get('Price'))}")
-
-        output_lines.append("<!-- Skills -->")
-        passives = collect_passives(normal, en)
-        output_lines.append(f"|passive_skills = {'; '.join(passives) if passives else ''}")
-        output_lines.append(f"|active_skills = {build_active_skills(base, normal, waza_by_pal_id, en)}")
-
-        output_lines.append("<!-- Stats -->")
-        for json_key, param in STATS_MAP.items():
-            normal_val = normal.get(json_key)
-            boss_val = boss.get(json_key)
-
-            output_lines.append(f"|{param} = {fmt(normal_val)}")
-
-            if param in ALPHA_ELIGIBLE_PARAMS and normal_val != boss_val:
-                output_lines.append(f"|alpha_{param} = {fmt(boss_val)}")
-
-        output_lines.append("}}")
-        output_lines.append("")
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(output_lines))
-
-    print(f"✅ Wrote pal infobox data to: {output_file}")
-
-
-if __name__ == "__main__":
-    main()
+    return "".join(blocks).rstrip() + "\n"

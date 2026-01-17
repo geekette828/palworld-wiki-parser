@@ -2,22 +2,20 @@ import os
 import re
 import sys
 import json
+from typing import Optional
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
-from pathlib import Path
 from config.name_map import ELEMENT_NAME_MAP
 from utils.english_text_utils import clean_english_text
 from utils.console_utils import force_utf8_stdout
 
 force_utf8_stdout()
 
-# Paths
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "PassiveSkill", "DT_PassiveSkill_Main.json")
 en_name_file = constants.EN_SKILL_NAME_FILE
 en_description_file = constants.EN_SKILL_DESC_FILE
-output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "passive_skill_infobox.txt")
 
 
 def normalize_title(s: str) -> str:
@@ -28,12 +26,6 @@ def normalize_title(s: str) -> str:
 def load_json(path: str):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
-
-
-def ensure_directory(path: str) -> None:
-    directory = os.path.dirname(path)
-    if directory:
-        os.makedirs(directory, exist_ok=True)
 
 
 def extract_localized_text(entry) -> str:
@@ -314,7 +306,7 @@ def build_infobox_entry(
 
 
 def build_infobox_map() -> dict[str, str]:
-    """Return { "English Name": "{{Passive Skill Infobox...}}\n" } for displayable passive skills."""
+    """Return { 'English Name': '{{Passive Skill Infobox...}}\\n' } for displayable passive skills."""
     print("🔍 Loading English text tables...")
     en_skill_names = load_text_table(en_name_file)
     en_skill_desc = load_text_table(en_description_file)
@@ -353,30 +345,9 @@ def build_infobox_map() -> dict[str, str]:
     return out
 
 
-def get_infobox_for_skill(skill_name: str, *, infobox_map: dict[str, str] | None = None) -> str:
+def get_infobox_for_skill(skill_name: str, *, infobox_map: Optional[dict[str, str]] = None) -> str:
     """Convenience helper for page builders: returns the infobox wikitext for a given skill name."""
     skill_name = normalize_title(skill_name)
     if infobox_map is None:
         infobox_map = build_infobox_map()
     return infobox_map.get(skill_name, "")
-
-
-def main() -> None:
-    infobox_map = build_infobox_map()
-
-    ensure_directory(output_file)
-    ordered_names = sorted(infobox_map.keys(), key=lambda s: s.casefold())
-    lines = []
-    for name in ordered_names:
-        lines.append(infobox_map[name].rstrip())
-        lines.append("")
-
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines).rstrip() + "\n")
-
-    file_uri = Path(output_file).as_uri()
-    print(f"✅ Wrote {len(ordered_names)} passive skill infobox entries to: {file_uri}")
-
-
-if __name__ == "__main__":
-    main()

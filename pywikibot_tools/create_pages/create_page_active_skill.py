@@ -1,13 +1,13 @@
 import os
 import sys
 import pywikibot
-import importlib.util
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from config import constants
-from typing import Dict, List, Optional
+from typing import List, Optional
 from pathlib import Path
+from builders.active_skill_infobox import (build_active_skill_infobox_model, render_active_skill_infobox)
 from utils.console_utils import force_utf8_stdout
 
 force_utf8_stdout()
@@ -15,7 +15,7 @@ force_utf8_stdout()
 preview_output_directory = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "Active Skill Pages")
 missing_pages_file = os.path.join(constants.OUTPUT_DIRECTORY, "Pywikibot", "Missing_Active_Skills.txt")
 
-DRY_RUN = False
+DRY_RUN = True
 OVERWRITE_EXISTING = True
 
 # Only used when DRY_RUN = True
@@ -72,39 +72,21 @@ def read_pages_list_file(path: str) -> List[str]:
 def extract_element_from_infobox(infobox_wikitext: str) -> Optional[str]:
     for line in infobox_wikitext.splitlines():
         line = line.strip()
-        if line.startswith("|element"):
+        if line.lower().startswith("|element"):
             _, value = line.split("=", 1)
             value = value.strip()
             return value or None
     return None
 
 
-def load_active_skill_infobox_module():
-    try:
-        from format_tools import active_skill_infobox as mod  # type: ignore
-        return mod
-    except Exception:
-        script_path = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "format_tools", "active_skill_infobox.py")
-        )
-        if not os.path.exists(script_path):
-            raise FileNotFoundError(f"Could not find active_skill_infobox.py at: {script_path}")
-
-        spec = importlib.util.spec_from_file_location("active_skill_infobox", script_path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Could not load module spec for: {script_path}")
-
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-
-
-active_skill_infobox = load_active_skill_infobox_module()
-
-
 def build_infobox_for_skill(skill_name: str) -> str:
     skill_name = normalize_title(skill_name)
-    return active_skill_infobox.build_active_skill_infobox(skill_name)
+
+    model = build_active_skill_infobox_model(skill_name)
+    if not model:
+        return ""
+
+    return render_active_skill_infobox(model, include_heading=False).strip()
 
 
 def build_page_text(skill_name: str, infobox_wikitext: str) -> str:
@@ -213,11 +195,6 @@ def main() -> None:
     for skill_name in pages_to_process:
         infobox = build_infobox_for_skill(skill_name)
 
-        # Remove the markdown header (## Skill Name) – only used in mass-infobox output
-        if infobox.startswith("##"):
-            infobox = infobox.split("\n", 1)[1]
-            infobox = infobox.lstrip()
-
         if not infobox:
             missing_infobox.append(skill_name)
             continue
@@ -227,6 +204,8 @@ def main() -> None:
         if DRY_RUN:
             write_dry_run_page(skill_name, page_text)
         else:
+            if site is None:
+                raise RuntimeError("site is None but DRY_RUN is False")
             create_or_update_page(site, skill_name, page_text)
 
     if missing_infobox:
