@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import json
 from typing import Dict, List, Optional, Tuple, Any
 
@@ -8,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from config import constants
 from config.name_map import WORK_SUITABILITY_MAP, ELEMENT_NAME_MAP
 from utils.json_datatable_utils import extract_datatable_rows
-from utils.english_text_utils import EnglishText
+from utils.english_text_utils import EnglishText, clean_english_text
 
 
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
@@ -241,6 +242,20 @@ def build_pal_order(rows: dict) -> List[str]:
     return [base for _, base in pal_order]
 
 
+_CHARACTERNAME_TAG_RE = re.compile(r"<characterName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
+
+
+def _replace_charactername_tags(text: str, english: EnglishText) -> str:
+    s = str(text or "")
+
+    def repl(m: re.Match) -> str:
+        pal_id = (m.group(1) or "").strip()
+        pal_name = english.get_pal_name(pal_id) or pal_id
+        return pal_name
+
+    return _CHARACTERNAME_TAG_RE.sub(repl, s)
+
+
 def build_pal_infobox_wikitext(
     base: str,
     *,
@@ -264,7 +279,10 @@ def build_pal_infobox_wikitext(
 
     out.append("{{Pal")
     out.append(f"|no = {zukan_no(normal.get('ZukanIndex'), normal.get('ZukanIndexSuffix'))}")
-    out.append("|alpha_title = ")
+
+    alpha_title_key = f"BOSS_NAME_{base}"
+    alpha_title = (en.get(constants.EN_NAME_PREFIX_FILE, alpha_title_key) or "").strip()
+    out.append(f"|alpha_title = {alpha_title}")
 
     ele1 = normalize_element(after_double_colon(normal.get("ElementType1")))
     ele2_raw = normalize_element(after_double_colon(normal.get("ElementType2")))
@@ -277,8 +295,16 @@ def build_pal_infobox_wikitext(
     pal_size = after_double_colon(size_raw) if size_raw else ""
     out.append(f"|pal_size = {pal_size}")
 
-    out.append("|partner_skill_name = ")
-    out.append("|partner_skill_desc = ")
+    partner_skill_name_key = f"PARTNERSKILL_{base}"
+    partner_skill_name = (en.get(constants.EN_SKILL_NAME_FILE, partner_skill_name_key) or "").strip()
+
+    partner_skill_desc_key = f"PAL_FIRST_SPAWN_DESC_{base}"
+    partner_skill_desc_raw = en.get_raw(constants.EN_PAL_ACTIVATE_FILE, partner_skill_desc_key)
+    partner_skill_desc_raw = _replace_charactername_tags(partner_skill_desc_raw, en)
+    partner_skill_desc = clean_english_text(partner_skill_desc_raw).replace("\r", "").replace("\n", " ").strip()
+
+    out.append(f"|partner_skill_name = {partner_skill_name}")
+    out.append(f"|partner_skill_desc = {partner_skill_desc}")
     out.append("|partner_skill_icon = ")
 
     out.append("|pal_gear = ")
