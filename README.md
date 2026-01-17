@@ -16,7 +16,8 @@ Palworld Parser/
 │   ├── passive_skill_infobox.py
 │   ├── pal_infobox.py
 │   ├── pal_breeding.py
-│   └── pal_drops.py
+│   ├── pal_drops.py
+│   └── pal_page.py
 │
 ├── exports/                                → Mass-export scripts (call builders, write files)
 │   ├── export_active_skill_infoboxes.py    → Outputs all Active Skill infoboxes
