@@ -68,10 +68,31 @@ class EnglishText:
 
     def get_pal_name(self, pal_id: str) -> str:
         pal_id = str(pal_id).strip()
-        return self.get_first(constants.EN_PAL_NAME_FILE, [
+        if not pal_id:
+            return ""
+
+        # First try the normal exact keys
+        v = self.get_first(constants.EN_PAL_NAME_FILE, [
             f"PAL_NAME_{pal_id}",
             f"PAL_{pal_id}",
         ])
+        if v:
+            return v
+
+        # Case-insensitive fallback for known casing mismatches (e.g., WindChimes vs Windchimes)
+        table = self._get_table(constants.EN_PAL_NAME_FILE)
+
+        want_keys = [
+            f"PAL_NAME_{pal_id}",
+            f"PAL_{pal_id}",
+        ]
+        want_folded = {k.casefold() for k in want_keys}
+
+        for key, row in table.items():
+            if isinstance(key, str) and key.casefold() in want_folded:
+                return clean_english_text(_extract_text(row), row)
+
+        return ""
 
     def get_item_name(self, item_id: str) -> str:
         item_id = str(item_id).strip()
