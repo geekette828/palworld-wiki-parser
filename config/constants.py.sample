@@ -18,7 +18,8 @@ EN_SKILL_DESC_FILE = f"{EN_TEXT_DIRECTORY}/DT_SkillDescText_Common.json"
 EN_PAL_ACTIVATE_FILE = f"{EN_TEXT_DIRECTORY}/DT_PalFirstActivatedInfoText.json"
 
 EN_ITEM_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_ItemNameText_Common.json"
-EN_BUILD_OBJECT_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_BuildObjectNameText_Common.json"
+EN_ITEM_DESC_FILE = f"{EN_TEXT_DIRECTORY}/DT_ItemDescriptionText_Common.json"
+EN_BUILD_OBJECT_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_MapObjectNameText_Common.json"
 
 EN_TECH_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_TechnologyNameText_Common.json"
 EN_STATUS_EFFECT_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_StatusEffectNameText_Common.json"

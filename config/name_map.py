@@ -38,3 +38,17 @@ ACTIVE_SKILL_STATUS_EFFECT_MAP = {
     "Stun": "Stun",
     "Wetness": "Soak",
 }
+
+RARITY_NAME_MAP = {
+    0: "Common",
+    1: "Uncommon",
+    2: "Rare",
+    3: "Epic",
+    4: "Legendary",
+
+    "RARITY_COMMON": "Common",
+    "RARITY_UNCOMMON": "Uncommon",
+    "RARITY_RARE": "Rare",
+    "RARITY_EPIC": "Epic",
+    "RARITY_LEGENDARY": "Legendary",
+}
