@@ -84,7 +84,8 @@ DataTable/
 ├── Incident/
 ├── Invader/
 ├── Item/
-│   └── DT_ItemDataTable.json               → Raw Item Data
+│   ├── DT_ItemDataTable.json               → Raw Item Data
+│   └── DT_ItemRecipeDataTable              → Raw Item Recipe Data
 ├── ItemShop/
 ├── Lab/
 ├── MapObject/
