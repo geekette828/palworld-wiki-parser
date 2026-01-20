@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional, List, Tuple
 
 from utils.english_text_utils import EnglishText
+from builders.item_page_summary import get_item_page_blurb
 
 from builders.item_infobox import (
     build_item_infobox_model_for_page,
@@ -13,6 +14,7 @@ from builders.item_infobox import (
 from builders.item_recipe import (
     build_item_recipe_wikitext,
 )
+
 
 
 @dataclass(frozen=True)
@@ -78,11 +80,20 @@ def build_item_page_sections(
 
     sections["infobox"] = render_item_infobox(model, include_heading=False).rstrip()
 
-    # Summary (for now, single generic line)
+    # Summary (generic line + optional type/subtype blurb)
+    summary_lines: List[str] = []
+
     if item_type:
-        sections["summary"] = f"'''{display_name}''' is a [[{item_type}]] item."
+        summary_lines.append(f"'''{display_name}''' is a [[{item_type}]] item.")
     else:
-        sections["summary"] = f"'''{display_name}''' is an item."
+        summary_lines.append(f"'''{display_name}''' is an item.")
+
+    blurb = get_item_page_blurb(item_type=item_type, item_subtype=subtype)
+    if blurb:
+        summary_lines.append("")
+        summary_lines.append(blurb)
+
+    sections["summary"] = "\n".join(summary_lines).rstrip()
 
     # Acquisition section (templates only for now)
     sections["acquisition"] = "\n".join(
@@ -106,7 +117,12 @@ def build_item_page_sections(
     if recipe_text:
         crafted_from_lines.append(recipe_text)
     elif options.include_placeholders:
-        crafted_from_lines.append("<!-- No crafting recipe template available for this item. -->")
+        crafted_from_lines.append("{{Crafting Recipe")
+        crafted_from_lines.append("|product = ")
+        crafted_from_lines.append("|yield = ")
+        crafted_from_lines.append("|workbench = ")
+        crafted_from_lines.append("|ingredients =")
+        crafted_from_lines.append("|workload =   }}")
 
     crafted_from_lines.extend(
         [
@@ -144,8 +160,7 @@ def build_item_page_sections(
                 "==Media==",
                 "<gallery>",
                 "FileName.png|File Description",
-                "</gallery>",
-                "-->",
+                "</gallery>-->",
             ]
         )
 

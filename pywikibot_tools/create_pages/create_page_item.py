@@ -16,12 +16,12 @@ force_utf8_stdout()
 preview_output_directory = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "Item Pages")
 missing_pages_file = os.path.join(constants.OUTPUT_DIRECTORY, "Pywikibot", "Missing_Items.txt")
 
-DRY_RUN = True
+DRY_RUN = False
 OVERWRITE_EXISTING = True
 
 # Only used when DRY_RUN = True
 TEST_PAGES = [
-    "Baked Berries",
+    "Applied Cooling Technique Ⅰ", "Awakening Starfruit ☆1", "Implant: Brave", "Little Kinship Peach"
 ]
 
 

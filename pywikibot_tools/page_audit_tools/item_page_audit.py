@@ -10,19 +10,18 @@ from config import constants
 from utils.console_utils import force_utf8_stdout
 from utils.json_datatable_utils import extract_datatable_rows
 from utils.english_text_utils import EnglishText
+from pywikibot.exceptions import InvalidTitleError
 from pathlib import Path
 
 force_utf8_stdout()
 
 # Outputs
 missing_pages_file = os.path.join(constants.OUTPUT_DIRECTORY, "Pywikibot", "Missing_Items.txt")
-invalid_pages_file = os.path.join(constants.OUTPUT_DIRECTORY, "Pywikibot", "Invalid_Item_Pages.txt")
-unmapped_item_ids_file = os.path.join(constants.OUTPUT_DIRECTORY, "Pywikibot", "Unmapped_Item_IDs.txt")
+other_items_file = os.path.join(constants.OUTPUT_DIRECTORY, "Pywikibot", "Missing_Items_Data.txt")
 
 # Inputs
 ITEM_INPUT_FILE = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemDataTable.json")
 TEMPLATE_NAME = "Item"
-
 
 
 def alt_item_name_ids(item_id: str) -> list[str]:
@@ -66,6 +65,17 @@ def alt_item_name_ids(item_id: str) -> list[str]:
 
     return deduped
 
+def sanitize_wiki_title(title: str) -> str:
+    """
+    Convert characters illegal in MediaWiki titles to acceptable equivalents.
+    Currently:
+      [ -> (
+      ] -> )
+    """
+    if not title:
+        return title
+
+    return title.replace("[", "(").replace("]", ")")
 
 def normalize_title(s: str) -> str:
     s = str(s or "").strip()
@@ -83,6 +93,15 @@ def load_rows(path: str) -> dict:
         raw = json.load(f)
     return extract_datatable_rows(raw, source=os.path.basename(path)) or {}
 
+def get_redirect_titles_main_namespace(site: pywikibot.Site) -> set[str]:
+    """
+    Bulk fetch all redirect page titles in main namespace (ns=0).
+    Returns folded (case-insensitive) titles.
+    """
+    titles: set[str] = set()
+    for page in site.allpages(namespace=0, filterredir=True):
+        titles.add(normalize_title(page.title(with_ns=False)).casefold())
+    return titles
 
 def build_item_title_set() -> tuple[set[str], list[str]]:
     """
@@ -154,6 +173,59 @@ def get_template_transclusion_titles(site: pywikibot.Site, template_name: str) -
 
     return titles
 
+def resolve_redirect_target_title(
+    site: pywikibot.Site,
+    start_title: str,
+    max_hops: int = 10,
+) -> tuple[str, int, bool]:
+    """
+    Follow redirects from start_title and return:
+      (final_target_title_without_ns, hops, was_redirect)
+    If it fails to resolve for any reason, returns the start title.
+    """
+    page = pywikibot.Page(site, sanitize_wiki_title(start_title))
+    if not page.exists():
+        return normalize_title(start_title), 0, False
+
+    hops = 0
+    was_redirect = False
+
+    while page.exists() and page.isRedirectPage():
+        was_redirect = True
+        try:
+            target = page.getRedirectTarget()
+        except Exception:
+            break
+
+        hops += 1
+        if hops >= max_hops:
+            break
+
+        page = target
+
+    return normalize_title(page.title(with_ns=False)), hops, was_redirect
+
+
+def page_transcludes_template(
+    page: pywikibot.Page,
+    template_name: str,
+) -> bool:
+    """
+    Checks if a page transcludes Template:<template_name>.
+    We keep this simple: look at templates used on the page (namespace 10).
+    """
+    if not page.exists():
+        return False
+
+    try:
+        for t in page.templates():
+            if normalize_title(t.title(with_ns=False)).casefold() == template_name.casefold():
+                return True
+    except Exception:
+        return False
+
+    return False
+
 
 def main() -> None:
     site = pywikibot.Site()
@@ -169,34 +241,58 @@ def main() -> None:
     print(f"✅ Item pages found (template transclusions): {len(existing_titles)}")
 
     existing_folded = {t.casefold() for t in existing_titles}
-    data_folded = {t.casefold() for t in data_item_titles}
 
-    missing = [
+    print("🔍 Loading all redirect page titles in main namespace (bulk)...")
+    redirect_folded = get_redirect_titles_main_namespace(site)
+    print(f"✅ Redirect pages found (ns=0): {len(redirect_folded)}")
+
+    # Candidate missing titles based on "not an Item page"
+    missing_initial = [
         t for t in sorted(data_item_titles, key=lambda s: s.casefold())
         if t.casefold() not in existing_folded
     ]
+    print(f"🔍 Checking {len(missing_initial)} candidates + {len(unmapped)} unmapped IDs...")
 
-    invalid = [
-        t for t in sorted(existing_titles, key=lambda s: s.casefold())
-        if t.casefold() not in data_folded
-    ]
+    truly_missing: list[str] = []
+    other_lines: list[str] = []
+
+    # Unmapped internal IDs always go to Other_Items.txt
+    for item_id in unmapped:
+        other_lines.append(f"{item_id} - Unmapped internal ID (no English item name mapping)")
+
+    # Cross off anything that exists as a redirect title (after sanitization)
+    for title in missing_initial:
+        safe_title = sanitize_wiki_title(title)
+        if safe_title.casefold() in redirect_folded:
+            if safe_title != title:
+                other_lines.append(f"{title} - Redirect exists as '{safe_title}' (sanitized title)")
+            else:
+                other_lines.append(f"{title} - Redirect page exists")
+            continue
+
+        # Still missing after accounting for redirects + Item pages
+        truly_missing.append(safe_title)
+
+    # Dedup missing list case-insensitively, preserving first casing
+    seen_missing = set()
+    dedup_missing: list[str] = []
+    for t in truly_missing:
+        f = t.casefold()
+        if f in seen_missing:
+            continue
+        seen_missing.add(f)
+        dedup_missing.append(t)
 
     ensure_directory(missing_pages_file)
     with open(missing_pages_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(missing).rstrip() + "\n")
+        f.write("\n".join(dedup_missing).rstrip() + "\n")
 
-    ensure_directory(invalid_pages_file)
-    with open(invalid_pages_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(invalid).rstrip() + "\n")
+    ensure_directory(other_items_file)
+    with open(other_items_file, "w", encoding="utf-8") as f:
+        f.write("\n".join(other_lines).rstrip() + "\n")
 
-    ensure_directory(unmapped_item_ids_file)
-    with open(unmapped_item_ids_file, "w", encoding="utf-8") as f:
-        f.write("\n".join(unmapped).rstrip() + "\n")
-
-    print(f"✅ Wrote {len(unmapped)} unmapped internal IDs to: {Path(unmapped_item_ids_file).as_uri()}")
-    print(f"✅ Wrote {len(missing)} missing pages to: {Path(missing_pages_file).as_uri()}")
-    print(f"✅ Wrote {len(invalid)} invalid pages to: {Path(invalid_pages_file).as_uri()}")
-
+    print(f"✅ Wrote {len(dedup_missing)} missing pages to: {Path(missing_pages_file).as_uri()}")
+    print(f"✅ Wrote {len(other_lines)} other items to: {Path(other_items_file).as_uri()}")
 
 if __name__ == "__main__":
     main()

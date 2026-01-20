@@ -92,6 +92,8 @@ def _normalize_item_type_by_id(item_id: str, type_a: str, item_name: str) -> str
             return "Pal Bounty Token"
         if item_id.startswith("SkillUnlock_"):
             return "Pal Gear"
+        if item_id.startswith("PalPassiveSkillChange_"):
+            return "Implant"
 
     if type_a == "SpecialWeapon":
         if item_name.endswith("Sphere"):
@@ -347,7 +349,13 @@ def _weapon_subtype(type_b_leaf: str, display_name: str) -> str:
 
     return ""
 
-def _consumable_type_and_subtype(type_a_leaf: str, type_b_leaf: str) -> Tuple[str, str]:
+def _accessory_subtype(display_name: str) -> str:
+    # Support Whistle subtype by name (case sensitive)
+    if "Support Whistle" in display_name:
+        return "Support Whistle"
+    return ""
+
+def _consumable_type_and_subtype(item_id: str, type_a_leaf: str, type_b_leaf: str) -> Tuple[str, str]:
     # Food is a Consumable on the wiki
     if type_a_leaf == "Food":
         wiki_type = "Consumable"
@@ -365,6 +373,10 @@ def _consumable_type_and_subtype(type_a_leaf: str, type_b_leaf: str) -> Tuple[st
     # Consume is also a Consumable on the wiki
     if type_a_leaf == "Consume":
         wiki_type = "Consumable"
+
+        # WorkSuitability_AddTicket_* => Pal Stat Boost
+        if item_id.startswith("WorkSuitability_AddTicket_"):
+            return wiki_type, "Pal Stat Boost"
 
         if type_b_leaf == "ConsumeTechnologyBook":
             return wiki_type, "Technical Manual"
@@ -594,7 +606,7 @@ def build_item_infobox_model_for_page(item_id: str) -> ItemInfoboxModel:
 
     raw_type_a = _leaf_enum(row.get("TypeA"))
     type_a = _normalize_item_type(raw_type_a)
-    ttype_a = _normalize_item_type_by_id(item_id, type_a, display_name)
+    type_a = _normalize_item_type_by_id(item_id, type_a, display_name)
     type_b = _leaf_enum(row.get("TypeB"))
     actor = _trim(row.get("ItemActorClass"))
 
@@ -721,7 +733,10 @@ def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
     type_a = _normalize_item_type(raw_type_a)
     type_a = _normalize_item_type_by_id(item_id, type_a, display_name)
     type_b = _leaf_enum(row.get("TypeB"))
-    wiki_type, wiki_subtype = _consumable_type_and_subtype(type_a, type_b)
+    wiki_type, wiki_subtype = _consumable_type_and_subtype(item_id, type_a, type_b)
+    if wiki_type == "Accessory":
+        wiki_subtype = _accessory_subtype(display_name) or wiki_subtype
+
 
     model: ItemInfoboxModel = {
         "item_id": item_id,
@@ -732,7 +747,7 @@ def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
         "rarity": _normalize_rarity(row.get("Rarity")),
         "sell": _format_sell_from_price(row.get("Price")),
         "weight": _format_weight(row.get("Weight")),
-        "technology": _format_number(row.get("TechnologyTreeLock")),
+        "technology": "", #_format_number(row.get("TechnologyTreeLock")),
     }
 
     if wiki_type == "Armor":

@@ -57,6 +57,19 @@ def _normalize_schematic_name(name: str) -> str:
     name = (name or "").strip()
     return _SCHEMATIC_SUFFIX_RE.sub("", name)
 
+def _is_schematic_product(*, product_id: str, product_name: str) -> bool:
+    pid = _trim(product_id).lower()
+    name = _normalize_schematic_name(_trim(product_name))
+
+    # Name-based detection (handles "Schematic 4", etc.)
+    if name.endswith("Schematic"):
+        return True
+
+    # Fallback: internal ID sometimes contains the signal even if name is odd/missing
+    if "schematic" in pid:
+        return True
+
+    return False
 
 def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
@@ -273,6 +286,9 @@ def _build_model_for_base_and_variants(
         "workload": _format_workload(base_row.get("WorkAmount")),
         "ingredients": _build_ingredients(en, base_row),
     }
+
+    if _is_schematic_product(product_id=product_id, product_name=product_name):
+        model["workbench"] = "Drafting Table"
 
     if variant_rows_by_num:
         schematic = ""
