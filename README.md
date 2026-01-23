@@ -13,18 +13,27 @@ Palworld Parser/
 │
 ├── builders/                               → Canonical builders
 │   ├── active_skill_infobox.py
-│   ├── passive_skill_infobox.py
+│   ├── chest_drop.py
+│   ├── chest_slot_chance.py
+│   ├── item_infobox.py
+│   ├── item_page_summary.py
+│   ├── item_page.py
 │   ├── pal_infobox.py
 │   ├── pal_breeding.py
 │   ├── pal_drops.py
-│   └── pal_page.py
+│   ├── pal_page.py
+│   └── passive_skill_infobox.py
 │
 ├── exports/                                → Mass-export scripts (call builders, write files)
 │   ├── export_active_skill_infoboxes.py    → Outputs all Active Skill infoboxes
-│   ├── export_passive_skill_infoboxes.py   → Outputs all Passive Skill infoboxes
+│   ├── export_chest_drops.py               → Outputs several .txt files on treasure chest drops
+│   ├── export_chest_slot_chance.py         → Outputs a txt file that can be pasted into Data:Treasure Chest Slot Chance to properly calculate drop chances
+│   ├── export_item_infoboxes.py            → Outputs all item infoboxes
+│   ├── export_item_recipes.py              → Outputs all item crafting recipes
 │   ├── export_pal_infoboxes.py             → Outputs all Pal infoboxes
 │   ├── export_pal_breeding.py              → Outputs all Pal breeding data
-│   └── export_pal_drops.py                 → Outputs all Pal drop data
+│   ├── export_pal_drops.py                 → Outputs all Pal drop data
+│   └── export_passive_skill_infoboxes.py   → Outputs all Passive Skill infoboxes
 │
 ├── pwb/                                    → Pywikibot engine (palworld.wiki.gg)
 │   ├── pwb.py
@@ -36,11 +45,8 @@ Palworld Parser/
 │   └── user-password.py                    → Wiki credentials (local only)
 │
 ├── pywikibot_tools/
-│   ├── page_audit_tools/                   → Wiki audits (find missing pages)
-│   │   ├── active_skill_page_audit.py
-│   │   ├── item_page_audit.py
-│   │   ├── pal_page_audit.py
-│   │   └── passive_skill_page_audit.py
+│   ├── compare_pages/                      → Page comparison & fix scripts
+│   │   └── compare_page_item.py    (still a WIP)
 │   │
 │   ├── create_pages/                       → Page creation scripts
 │   │   ├── create_page_active_skill.py
@@ -48,7 +54,11 @@ Palworld Parser/
 │   │   ├── create_page_pal.py
 │   │   └── create_page_passive_skill.py
 │   │
-│   └── page_compare_tools/                 → Page comparison & fix scripts (future)
+│   ├── page_audit_tools/                   → Wiki audits (find missing pages)
+│   │   ├── active_skill_page_audit.py
+│   │   ├── item_page_audit.py
+│   │   ├── pal_page_audit.py
+│   │   └── passive_skill_page_audit.py
 │
 ├── utils/
 │   ├── console_utils.py
@@ -74,6 +84,7 @@ DataTable/
 ├── CharacterCreation/
 ├── CharacterTeamMission/
 ├── Common/
+│   └── DT_FieldLotteryNameDataTable.json   → Raw data around chance for lottery slots to roll.
 ├── Debug/
 ├── Dungeon/
 ├── Environment/
