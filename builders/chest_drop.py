@@ -112,7 +112,7 @@ def build_enemy_base_location(field_name: str, grade_number: str) -> str:
     tier = m.group("tier") or ""
     hi = m.group("hi") is not None
 
-    # "02" tier OR explicit "_02" suffix means Level 60+ per your rules.
+    # "02" tier OR explicit "_02" suffix means Level 50+.
     is_level_60_plus = hi or (tier == "02")
 
     faction = ENEMY_BASE_BIOME_TO_FACTION.get(biome)
@@ -120,7 +120,7 @@ def build_enemy_base_location(field_name: str, grade_number: str) -> str:
         return ""
 
     chest_kind = "Golden Chest" if goal else "Generic Chest"
-    prefix = "Level 60+ " if is_level_60_plus else ""
+    prefix = "High Level " if is_level_60_plus else ""
     return f"{prefix}{faction} Enemy Base ({chest_kind}: Grade {grade_number})"
 
 
