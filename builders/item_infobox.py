@@ -90,8 +90,8 @@ def _normalize_item_type_by_id(item_id: str, type_a: str, item_name: str) -> str
     if type_a == "Essential":
         if item_id.startswith("BossDefeatReward_"):
             return "Pal Bounty Token"
-        if item_id.startswith("SkillUnlock_"):
-            return "Pal Gear"
+        if item_id.startswith("SkillUnlock_"): #Pal Gear ID
+            return "Key Item"
         if item_id.startswith("PalPassiveSkillChange_"):
             return "Implant"
 
@@ -736,7 +736,10 @@ def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
     wiki_type, wiki_subtype = _consumable_type_and_subtype(item_id, type_a, type_b)
     if wiki_type == "Accessory":
         wiki_subtype = _accessory_subtype(display_name) or wiki_subtype
-
+    
+    if item_id.startswith("SkillUnlock_"):
+        if wiki_type == "Key Item":
+            wiki_subtype = "Pal Gear"
 
     model: ItemInfoboxModel = {
         "item_id": item_id,

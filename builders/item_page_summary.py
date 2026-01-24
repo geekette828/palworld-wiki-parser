@@ -21,10 +21,6 @@ TYPE_SUMMARIES = {
         "They are used at a Pal Surgery Table—a structure unlocked through technology and built in the player's base—to add new passive abilities or replace existing ones on a Pal. "
         "Implants provide various bonuses such as stat increases, work or movement enhancements, or utility effects."
     ),
-    "Pal Gear": (
-        "Pal Gear is equipment designed for use by Pals. It enables specific abilities, actions, or interactions that are not available by default. "
-        "Pal Gear is unlocked through [[technology]] and is typically crafted to access specific Pal-related features or mechanics."
-    ),
     "Schematic": (
         "Schematics are items that unlock or upgrade crafting recipes. "
         "Possessing a schematic allows the associated item to be crafted at the appropriate workbench. "
@@ -56,16 +52,20 @@ SUBTYPE_SUMMARIES = {
         "They are commonly combined to create food or other consumable items with enhanced effects. "
         "Ingredients may also be used in various production or processing recipes and are obtained through gathering, farming, drops, or purchases."
     ),
+    "Pal Gear": (
+        "Pal Gear refers to a special category of items designed specifically for individual [[Pals]]. When unlocked, Pal Gear enables or enhances a Pal's unique [[Partner Skills|partner skill]], often changing how that Pal behaves in combat, exploration, or support roles. Some Pal Gear provides healing or support effects for the player. Pal Gear is unlocked through the [[Technology]] tree, typically after capturing the associated Pal, and must be crafted at a [[Pal Gear Workbench]] using materials such as leather, fiber, ingots, organs, and [[Paldium Fragment]]s."
+        "<br><br>Pal Gear cannot be transferred between different Pal species, as each item is uniquely tied to a specific Pal and its corresponding partner skill."
+    ),
     "Skill Fruit": (
         "Skill Fruits are consumable items that permanently teach a specific Skill to a Pal when used. Each Skill Fruit grants one unique ability, allowing players to customize a Pal's moveset beyond its natural skill pool. "
         "Skill Fruits are typically obtained through exploration, merchants, or special rewards, making them a valuable resource for building specialized combat or utility Pals. "
         "/n"
         "Once a skill fruit has been obtained, they can be placed in a [[Skillfruit Orchard]] to grow additional fruits of the same element."
     ),
-        "Support Whistle": (
-        "The Support Whistle is a consumable utility item used to issue commands to nearby Pals. "
-        "When used, it signals Pals to alter their behavior and prioritize supporting the player. "
-        "The Support Whistle is consumed on use and is used to manage Pal behavior during gameplay."
+    "Support Whistle": (
+        "Support Whistles are passive accessory items that provide continuous stat bonuses to a Pal fighting alongside the player while equipped. Rather than issuing commands or requiring activation, these whistles automatically enhance a Pal's combat effectiveness, "
+        "most commonly by increasing damage for a specific elemental type or by boosting overall attack or defense. Support Whistles come in multiple tiers, with higher versions granting stronger bonuses, and only apply while worn in an accessory slot. "
+        "They are typically obtained from treasure chests, bosses, vendors, or other loot sources, and are intended to let the player subtly optimize Pal performance without changing gameplay flow or requiring direct interaction. "
     ),
 }
 
