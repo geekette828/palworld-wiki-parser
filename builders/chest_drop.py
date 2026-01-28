@@ -28,6 +28,7 @@ HARDCODED_ITEM_NAME_OVERRIDES = {
     "TreasureMap02": "Treasure Map (Uncommon)",
     "TreasureMap03": "Treasure Map (Rare)",
     "TreasureMap04": "Treasure Map (Epic)",
+    "TreasureMap05": "Treasure Map (Legendary)",
 }
 
 _GRADE_NUM_RE = re.compile(r"::\s*Grade\s*(\d+)\s*$", re.IGNORECASE)
@@ -38,6 +39,7 @@ _ENEMY_CAMP_NAME_RE = re.compile(
     r"(?P<tier>01|02)?"
     r"(?P<hi>_02)?$"
 )
+
 
 class ItemLotteryRow(TypedDict, total=False):
     FieldName: str
@@ -86,7 +88,6 @@ def _parse_enum_leaf(v: Any) -> str:
     m = _ENUM_LEAF_RE.search(s)
     if m:
         return m.group(1)
-    # Fallback: if someone already gave "Normal" without namespace
     return s
 
 
@@ -102,6 +103,7 @@ def _parse_grade_number(treasure_box_grade: Any) -> str:
     digits = re.findall(r"(\d+)", s)
     return digits[-1] if digits else ""
 
+
 def build_enemy_base_location(field_name: str, grade_number: str) -> str:
     m = _ENEMY_CAMP_NAME_RE.match(field_name or "")
     if not m:
@@ -112,7 +114,6 @@ def build_enemy_base_location(field_name: str, grade_number: str) -> str:
     tier = m.group("tier") or ""
     hi = m.group("hi") is not None
 
-    # "02" tier OR explicit "_02" suffix means Level 50+.
     is_level_60_plus = hi or (tier == "02")
 
     faction = ENEMY_BASE_BIOME_TO_FACTION.get(biome)
@@ -245,6 +246,51 @@ def build_enemy_base_chest_drops_export_text(
     return ("\n\n".join(blocks).rstrip() + "\n") if blocks else ""
 
 
+def build_oilrig_chest_drops_export_text(
+    *,
+    input_path: str = item_lottery_input_file,
+) -> str:
+    """
+    Export #3: Oil Rigs
+    - DT_ItemLotteryDataTable.json provides FieldName, SlotNo, WeightInSlot, StaticItemId, MinNum, MaxNum, TreasureBoxGrade
+    - Filter to FieldName starting with "Oilrig_"
+    - Group by (FieldName, TreasureBoxGrade number)
+    - location left blank for now
+    """
+    en = EnglishText()
+    rows_by_id = _load_item_lottery_rows(input_path=input_path)
+
+    grouped: DefaultDict[Tuple[str, str], List[ItemLotteryRow]] = defaultdict(list)
+
+    for _, row in rows_by_id.items():
+        field_name = _trim(row.get("FieldName"))
+        if not field_name.startswith("Oilrig_"):
+            continue
+
+        grade_number = _parse_grade_number(row.get("TreasureBoxGrade"))
+        if not grade_number:
+            continue
+
+        grouped[(field_name, grade_number)].append(row)
+
+    def group_sort_key(k: Tuple[str, str]) -> Tuple[str, int]:
+        fname, g = k
+        return (fname.casefold(), _to_int(g))
+
+    blocks: List[str] = []
+    for (field_name, grade_number) in sorted(grouped.keys(), key=group_sort_key):
+        block = _format_chest_drop_block(
+            chest_name=field_name,
+            grade_number=grade_number,
+            location="",
+            rows=grouped[(field_name, grade_number)],
+            en=en,
+        )
+        blocks.append(block)
+
+    return ("\n\n".join(blocks).rstrip() + "\n") if blocks else ""
+
+
 def build_dungeon_chest_drops_export_text(
     *,
     dungeon_input_path: str = dungeon_item_lottery_input_file,
@@ -271,8 +317,6 @@ def build_dungeon_chest_drops_export_text(
         if field_name:
             item_rows_by_field[field_name].append(r)
 
-    # Which dungeon "chests" exist:
-    # key: chestName, value: item_field_name
     chest_to_item_field: Dict[str, str] = {}
     for _, dr in dungeon_rows_by_id.items():
         spawn_area = _trim(dr.get("SpawnAreaId"))
@@ -288,7 +332,6 @@ def build_dungeon_chest_drops_export_text(
             continue
 
         chest_name = f"{item_field}:{type_leaf}"
-        # If duplicates exist, they should point to the same item_field anyway
         chest_to_item_field[chest_name] = item_field
 
     grouped: DefaultDict[Tuple[str, str], List[ItemLotteryRow]] = defaultdict(list)
@@ -327,8 +370,8 @@ def build_all_chest_drop_exports() -> Dict[str, str]:
 
     out["chest_enemy_base.txt"] = build_enemy_base_chest_drops_export_text()
     out["chest_dungeon.txt"] = build_dungeon_chest_drops_export_text()
+    out["chest_oilrig.txt"] = build_oilrig_chest_drops_export_text()
 
-    # Export #3 placeholder (world)
     out["chest_world.txt"] = ""
 
     return out
