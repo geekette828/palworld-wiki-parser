@@ -15,6 +15,7 @@ Palworld Parser/
 │   ├── active_skill_infobox.py
 │   ├── chest_drop.py
 │   ├── chest_slot_chance.py
+│   ├── fishing_location
 │   ├── item_infobox.py
 │   ├── item_page_summary.py
 │   ├── item_page.py
@@ -27,7 +28,8 @@ Palworld Parser/
 ├── exports/                                → Mass-export scripts (call builders, write files)
 │   ├── export_active_skill_infoboxes.py    → Outputs all Active Skill infoboxes
 │   ├── export_chest_drops.py               → Outputs several .txt files on treasure chest drops
-│   ├── export_chest_slot_chance.py         → Outputs a txt file that can be pasted into Data:Treasure Chest Slot Chance to properly calculate drop chances
+│   ├── export_chest_slot_chance.py         → Outputs a json file that can be pasted into Data:ChestSlotChance.json to properly calculate drop chances
+│   ├── export_fishing_locations.py
 │   ├── export_item_infoboxes.py            → Outputs all item infoboxes
 │   ├── export_item_recipes.py              → Outputs all item crafting recipes
 │   ├── export_pal_infoboxes.py             → Outputs all Pal infoboxes

@@ -36,7 +36,7 @@ def build_chest_related_field_names() -> set[str]:
         if not isinstance(r, dict):
             continue
         field_name = str(r.get("FieldName") or "").strip()
-        if field_name.startswith("EnemyCamp_"):
+        if field_name.startswith("EnemyCamp_") or field_name.startswith("Oilrig_"):
             allowed.add(field_name)
 
     # Dungeon spawner names (ItemFieldLotteryName) excluding TestDebug*
@@ -53,17 +53,17 @@ def build_chest_related_field_names() -> set[str]:
 
     return allowed
 
-def build_field_lottery_slot_chances_text(
+def build_field_lottery_slot_chances_json(
     *,
     input_path: str = field_lottery_input_file,
     chest_only: bool = True,
-) -> str:
+) -> Dict[str, Dict[str, float]]:
     raw = _load_json(input_path)
     rows = extract_datatable_rows(raw, source=os.path.basename(input_path)) or {}
 
     allowed = build_chest_related_field_names() if chest_only else None
 
-    lines: List[str] = []
+    out: Dict[str, Dict[str, float]] = {}
 
     for field_name in sorted(rows.keys(), key=str.casefold):
         if allowed is not None and field_name not in allowed:
@@ -73,13 +73,34 @@ def build_field_lottery_slot_chances_text(
         if not isinstance(row, dict):
             continue
 
+        slot_map: Dict[str, float] = {}
+
         for slot_no in range(1, 16):
             key = f"ItemSlot{slot_no}_ProbabilityPercent"
             if key not in row:
                 continue
-
             prob = _to_float(row.get(key))
-            lines.append(f"{{{{Chest Slot Chance|{field_name}|{slot_no}|{prob}}}}}")
+            slot_map[str(slot_no)] = prob
 
-    return ("\n".join(lines).rstrip() + "\n") if lines else ""
+        if slot_map:
+            out[field_name] = slot_map
+
+    return out
+
+
+def build_field_lottery_slot_chances_json_text(
+    *,
+    input_path: str = field_lottery_input_file,
+    chest_only: bool = True,
+    indent: int = 2,
+) -> str:
+    data = build_field_lottery_slot_chances_json(
+        input_path=input_path,
+        chest_only=chest_only,
+    )
+
+    # Stable, paste-friendly JSON for Data: namespace
+    text = json.dumps(data, ensure_ascii=False, indent=indent, sort_keys=True)
+    return text.rstrip() + "\n"
+
 
