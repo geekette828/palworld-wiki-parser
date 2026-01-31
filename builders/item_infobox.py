@@ -2,17 +2,18 @@ import os
 import re
 import sys
 import json
-from typing import Any, Dict, Optional, List, Tuple, TypedDict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from typing import Any, Dict, Optional, List, Tuple, TypedDict
 from config import constants
+from functools import lru_cache
 from utils.english_text_utils import EnglishText, clean_english_text
 from utils.json_datatable_utils import extract_datatable_rows
 from utils.console_utils import force_utf8_stdout
-
 force_utf8_stdout()
 
+#Paths
 item_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemDataTable.json")
 en_name_file = constants.EN_ITEM_NAME_FILE
 en_description_file = constants.EN_ITEM_DESC_FILE
@@ -22,9 +23,112 @@ en_skill_name_file = constants.EN_SKILL_NAME_FILE
 _CACHED_ITEM_ROWS: Optional[Dict[str, Dict[str, Any]]] = None
 _CACHED_ENGLISH_NAME_TO_ITEM_ID: Optional[Dict[str, str]] = None
 
-
+_BARE_ITEM_ID_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9]*_[0-9]+)\b")
 _TOKEN_RE = re.compile(r"<\s*(\w+)\s+id=\|\s*([^|]+)\s*\|/>([ \t\r\n]*)", re.IGNORECASE)
 _NUM_TAG_RE = re.compile(r"<Num(?:Blue|Red)_\d+>", re.IGNORECASE)
+_COMMON_TOKEN_RE = re.compile(r"\bCOMMON_[A-Za-z0-9_]+\b")
+
+@lru_cache(maxsize=1)
+def _load_common_text_map() -> Dict[str, str]:
+    """
+    Load constants.EN_COMMON_TEXT_FILE and return:
+      COMMON_* -> LocalizedString (fallback SourceString)
+
+    Handles DataTable format (preferred) and a couple fallback shapes.
+    Also normalizes DataTable keys by stripping a trailing "_TextData".
+    """
+    out: Dict[str, str] = {}
+
+    try:
+        with open(constants.EN_COMMON_TEXT_FILE, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except Exception:
+        return out
+
+    # Prefer DataTable extraction first
+    try:
+        rows = extract_datatable_rows(raw, source=os.path.basename(constants.EN_COMMON_TEXT_FILE)) or {}
+        if isinstance(rows, dict) and rows:
+            for key, entry in rows.items():
+                if not isinstance(key, str) or not key:
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+
+                text_data = entry.get("TextData") or {}
+                if not isinstance(text_data, dict):
+                    continue
+
+                localized = text_data.get("LocalizedString") or text_data.get("SourceString")
+                if not isinstance(localized, str) or not localized.strip():
+                    continue
+
+                clean_key = key
+                if clean_key.endswith("_TextData"):
+                    clean_key = clean_key[:-9]
+
+                out[clean_key] = localized.strip()
+
+            return out
+    except Exception:
+        pass
+
+    # Fallback shapes (if not DataTable)
+    items: List[Tuple[str, Any]] = []
+
+    if isinstance(raw, dict):
+        items = [(k, v) for k, v in raw.items()]
+
+    elif isinstance(raw, list):
+        for entry in raw:
+            if not isinstance(entry, dict):
+                continue
+
+            key = entry.get("Key") or entry.get("Name")
+            if isinstance(key, str) and key:
+                items.append((key, entry))
+                continue
+
+            if len(entry) == 1:
+                k = next(iter(entry.keys()))
+                v = entry.get(k)
+                if isinstance(k, str) and k:
+                    items.append((k, v))
+
+    for key, entry in items:
+        if not isinstance(key, str) or not key:
+            continue
+
+        text_data: Dict[str, Any] = {}
+        if isinstance(entry, dict):
+            text_data = entry.get("TextData") or {}
+        if not isinstance(text_data, dict):
+            continue
+
+        localized = text_data.get("LocalizedString") or text_data.get("SourceString")
+        if not isinstance(localized, str) or not localized.strip():
+            continue
+
+        clean_key = key
+        if clean_key.endswith("_TextData"):
+            clean_key = clean_key[:-9]
+
+        out[clean_key] = localized.strip()
+
+    return out
+
+def _resolve_common_tokens(s: str) -> str:
+    if not s:
+        return ""
+
+    mapping = _load_common_text_map()
+    mapping_cf = {str(k).casefold(): v for k, v in mapping.items()}
+
+    def repl(m: re.Match) -> str:
+        token = m.group(0)
+        return mapping.get(token) or mapping_cf.get(token.casefold(), token)
+
+    return _COMMON_TOKEN_RE.sub(repl, s)
 
 def _resolve_ui_common(token_id: str) -> str:
     token_id = (token_id or "").strip()
@@ -54,7 +158,32 @@ def _resolve_ui_common(token_id: str) -> str:
                 return str(ws).strip()
         return suffix.replace("_", " ").strip()
 
+    mapped_common = _load_common_text_map().get(token_id)
+    if mapped_common:
+        return mapped_common
+
     return token_id
+
+def _resolve_active_skill_name(english: EnglishText, skill_id: str) -> str:
+    skill_id = _trim(skill_id)
+    if not skill_id or skill_id.lower() == "none":
+        return ""
+
+    # Try a few common key patterns used by Palworld text tables.
+    # Return the first match; fall back to the raw id if nothing resolves.
+    candidates = [
+        skill_id,
+        f"WAZA_{skill_id}",
+        f"SKILL_{skill_id}",
+        f"ACTIVE_{skill_id}",
+    ]
+
+    for k in candidates:
+        name = english.get(en_skill_name_file, k)
+        if name:
+            return name
+
+    return skill_id
 
 def _resolve_passive_skill_name(english: EnglishText, passive_id: str) -> str:
     passive_id = _trim(passive_id)
@@ -80,6 +209,19 @@ def _resolve_passive_skill_list(english: EnglishText, row: Dict[str, Any]) -> st
         names.append(_resolve_passive_skill_name(english, pid))
 
     return " / ".join([n for n in names if n])
+
+def _resolve_bare_item_ids_in_text(english: EnglishText, text: str) -> str:
+    if not text:
+        return ""
+
+    def repl(m: re.Match) -> str:
+        token_id = (m.group(1) or "").strip()
+        if not token_id:
+            return ""
+        name = english.get_item_name(token_id)
+        return name or token_id
+
+    return _BARE_ITEM_ID_RE.sub(repl, text)
 
 def _normalize_item_type(type_a: str) -> str:
     if type_a == "Blueprint":
@@ -155,6 +297,9 @@ def _replace_description_tokens(english: EnglishText, text: str) -> str:
 
         if tag == "uicommon":
             return (_resolve_ui_common(token_id) or token_id) + trailing_ws
+        
+        if tag in ("skillname", "wazaname"):
+            return (_resolve_active_skill_name(english, token_id) or token_id) + trailing_ws
 
         if tag == "mapobjectname":
             return (_resolve_map_object_name(english, token_id) or token_id) + trailing_ws
@@ -728,6 +873,9 @@ def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
 
 
     description = _get_item_description(english, item_id, row)
+    description = _replace_description_tokens(english, description)
+    description = _resolve_bare_item_ids_in_text(english, description)
+
 
     raw_type_a = _leaf_enum(row.get("TypeA"))
     type_a = _normalize_item_type(raw_type_a)
@@ -778,10 +926,19 @@ def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
 
     elif wiki_type == "Consumable":
         # Food & Consume types land here
-        model["nutrition"] = _format_number(row.get("RestoreSatiety"))
-        model["san"] = _format_number(row.get("RestoreSanity"))
-        model["corruption"] = _format_corruption_seconds(row.get("CorruptionFactor"))
-        model["consumeEffect"] = _build_consume_effect(row)
+        if wiki_subtype == "Skill Fruit":
+            # Skill Fruits aren't food; the wiki leaves nutrition/san/corruption blank
+            model["consumeEffect"] = _build_consume_effect(row)
+        else:
+            model["nutrition"] = _format_number(row.get("RestoreSatiety"))
+            model["san"] = _format_number(row.get("RestoreSanity"))
+            model["corruption"] = _format_corruption_seconds(row.get("CorruptionFactor"))
+            model["consumeEffect"] = _build_consume_effect(row)
+
+    # Resolve COMMON_* localization tokens in all string fields
+    for k, v in list(model.items()):
+        if isinstance(v, str):
+            model[k] = _resolve_common_tokens(v)
 
     return model
 
