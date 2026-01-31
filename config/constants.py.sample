@@ -9,6 +9,8 @@ OUTPUT_DIRECTORY = f"{ROOT_DIRECTORY}/_output/{PATCH_VERSION}"
 # Text Files, for internal -> production name conversions.
 EN_TEXT_DIRECTORY = f"{INPUT_DIRECTORY}/en/Pal/DataTable/Text"
 
+EN_COMMON_TEXT_FILE = f"{EN_TEXT_DIRECTORY}/DT_UI_Common_Text_Common.json"
+
 EN_PAL_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_PalNameText_Common.json"
 EN_PAL_LONG_DESCRIPTION_FILE = f"{EN_TEXT_DIRECTORY}/DT_PalLongDescriptionText.json"
 EN_NAME_PREFIX_FILE = f"{EN_TEXT_DIRECTORY}/DT_NamePrefixText_Common.json"

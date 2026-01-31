@@ -8,12 +8,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from config import constants
 from config.name_map import WORK_SUITABILITY_MAP, ELEMENT_NAME_MAP
+from config.partner_skill_icon_map import PARTNER_SKILL_ICON_RULES
 from utils.json_datatable_utils import extract_datatable_rows
 from utils.english_text_utils import EnglishText, clean_english_text
 
-
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
 active_skill_input_file = os.path.join(constants.INPUT_DIRECTORY, "Waza", "DT_WazaMasterLevel.json")
+pal_activate_text_input_file = constants.EN_PAL_ACTIVATE_FILE
+partner_skill_name_text_input_file = constants.EN_SKILL_NAME_FILE
 
 
 STATS_MAP = {
@@ -111,6 +113,25 @@ def after_double_colon(v: Any) -> str:
         return s.split("::", 1)[1]
     return s
 
+def _textdata_string(row: Any) -> str:
+    if not isinstance(row, dict):
+        return ""
+    td = row.get("TextData")
+    if not isinstance(td, dict):
+        return ""
+
+    s = td.get("LocalizedString")
+    if s is None or str(s).strip() == "":
+        s = td.get("SourceString")
+
+    return "" if s is None else str(s)
+
+
+def _lookup_text(rows: dict, key: str) -> str:
+    if not rows or not key:
+        return ""
+    row = rows.get(key)
+    return _textdata_string(row).strip()
 
 def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
     if zukan_index is None:
@@ -274,6 +295,43 @@ def _replace_item_and_object_tags(text: str, english: EnglishText) -> str:
     s = _MAPOBJECTNAME_TAG_RE.sub(object_repl, s)
     return s
 
+def resolve_partner_skill_icon(desc: Any) -> str:
+    s = str(desc or "").strip().lower()
+    if s == "":
+        return ""
+
+    s = re.sub(r"\s+", " ", s)
+
+    for icon_name, required_phrases, banned_phrases in (PARTNER_SKILL_ICON_RULES or []):
+        if not icon_name:
+            continue
+
+        required_ok = True
+        for phrase in (required_phrases or []):
+            p = str(phrase or "").strip().lower()
+            if p == "":
+                continue
+            if p not in s:
+                required_ok = False
+                break
+        if not required_ok:
+            continue
+
+        banned_hit = False
+        for phrase in (banned_phrases or []):
+            p = str(phrase or "").strip().lower()
+            if p == "":
+                continue
+            if p in s:
+                banned_hit = True
+                break
+        if banned_hit:
+            continue
+
+        return str(icon_name).strip()
+
+    return ""
+
 def build_pal_infobox_wikitext(
     base: str,
     *,
@@ -281,6 +339,8 @@ def build_pal_infobox_wikitext(
     waza_by_pal_id: dict,
     en: EnglishText,
     include_header: bool = True,
+    pal_activate_rows: dict,
+    partner_skill_name_rows: dict,
 ) -> str:
     normal = rows.get(base)
     boss = rows.get(f"BOSS_{base}")
@@ -314,17 +374,17 @@ def build_pal_infobox_wikitext(
     out.append(f"|pal_size = {pal_size}")
 
     partner_skill_name_key = f"PARTNERSKILL_{base}"
-    partner_skill_name = (en.get(constants.EN_SKILL_NAME_FILE, partner_skill_name_key) or "").strip()
+    partner_skill_name = _lookup_text(partner_skill_name_rows, partner_skill_name_key)
 
     partner_skill_desc_key = f"PAL_FIRST_SPAWN_DESC_{base}"
-    partner_skill_desc_raw = en.get_raw(constants.EN_PAL_ACTIVATE_FILE, partner_skill_desc_key)
+    partner_skill_desc_raw = _lookup_text(pal_activate_rows, partner_skill_desc_key)
     partner_skill_desc_raw = _replace_charactername_tags(partner_skill_desc_raw, en)
     partner_skill_desc_raw = _replace_item_and_object_tags(partner_skill_desc_raw, en)
     partner_skill_desc = clean_english_text(partner_skill_desc_raw).replace("\r", "").replace("\n", " ").strip()
 
     out.append(f"|partner_skill_name = {partner_skill_name}")
     out.append(f"|partner_skill_desc = {partner_skill_desc}")
-    out.append("|partner_skill_icon = ")
+    out.append(f"|partner_skill_icon = {resolve_partner_skill_icon(partner_skill_desc)}")
 
     out.append("|pal_gear = ")
     out.append(f"|work_suitability = {build_work_suitability(normal)}")
@@ -357,6 +417,9 @@ def build_all_pal_infoboxes_text(*, include_headers: bool = True) -> str:
     rows = load_rows(param_input_file, source="DT_PalMonsterParameter")
     waza_rows = load_rows(active_skill_input_file, source="DT_WazaMasterLevel")
 
+    pal_activate_rows = load_rows(pal_activate_text_input_file, source="DT_PalFirstActivatedInfoText")
+    partner_skill_name_rows = load_rows(partner_skill_name_text_input_file, source="DT_SkillNameText_Common")
+
     waza_by_pal_id = build_waza_master_index(waza_rows)
     en = EnglishText()
 
@@ -370,6 +433,8 @@ def build_all_pal_infoboxes_text(*, include_headers: bool = True) -> str:
             waza_by_pal_id=waza_by_pal_id,
             en=en,
             include_header=include_headers,
+            pal_activate_rows=pal_activate_rows,
+            partner_skill_name_rows=partner_skill_name_rows,
         )
         if block:
             blocks.append(block)
