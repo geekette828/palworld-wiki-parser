@@ -60,7 +60,7 @@ def _resolve_character_name_tags(text: str, en: EnglishText) -> str:
     return _CHARACTER_NAME_TAG_RE.sub(repl, s)
 
 
-def _clean_paldeck_description(raw: str, en: EnglishText, row: Optional[dict]) -> str:
+def _clean_palpedia_description(raw: str, en: EnglishText, row: Optional[dict]) -> str:
     # Only special-case CRLF -> space (leave lone \r handling to existing utils)
     s = str(raw or "").replace("\r\n", " ")
 
@@ -78,7 +78,7 @@ class PalPageOptions:
     include_placeholders: bool = True
     include_navbox_and_category: bool = True
     include_history_section: bool = True
-    include_paldeck: bool = True
+    include_palpedia: bool = True
     include_intro_line: bool = True
     include_characteristics: bool = True
     include_drops: bool = True
@@ -199,16 +199,16 @@ def build_pal_page_sections(
         include_header=False,
     ).rstrip()
 
-    if options.include_paldeck:
+    if options.include_palpedia:
         key = f"PAL_LONG_DESC_{base}"
         raw = en.get_raw(constants.EN_PAL_LONG_DESCRIPTION_FILE, key)
         row = en._get_table(constants.EN_PAL_LONG_DESCRIPTION_FILE).get(key)  # same cached table en uses
-        desc = _clean_paldeck_description(raw, en, row)
+        desc = _clean_palpedia_description(raw, en, row)
 
         if desc:
-            sections["paldeck"] = f"{{{{paldeck|{desc}}}}}"
+            sections["palpedia"] = f"{{{{palpedia|{desc}}}}}"
         elif options.include_placeholders:
-            sections["paldeck"] = "{{paldeck|<!--Pal Deck Summary Goes here-->}}"
+            sections["palpedia"] = "{{palpedia|<!--Pal Deck Summary Goes here-->}}"
 
 
     if options.include_intro_line:
@@ -317,9 +317,9 @@ def build_pal_page_wikitext(
     if infobox:
         out.append(infobox)
 
-    paldeck = sections.get("paldeck", "").strip()
-    if paldeck:
-        out.append(paldeck)
+    palpedia = sections.get("palpedia", "").strip()
+    if palpedia:
+        out.append(palpedia)
 
     intro = sections.get("intro", "").strip()
     if intro:
@@ -360,7 +360,7 @@ def build_pal_page_wikitext(
         out.extend(
             [
                 "<!--==Trivia==",
-                "* This Pal was featured in [[Paldeck]] #??? on ??/??/??:",
+                "* This Pal was featured in [[palpedia]] #??? on ??/??/??:",
                 "",
                 "==Media==",
                 "<gallery widths=150>",

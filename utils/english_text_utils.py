@@ -75,6 +75,21 @@ class EnglishText:
             if v:
                 return v
         return ""
+    
+    def get_first_casefold(self, file_path: str, keys: list) -> str:
+        # Exact pass first (fast path)
+        v = self.get_first(file_path, keys)
+        if v:
+            return v
+
+        table = self._get_table(file_path)
+        want_folded = {str(k).casefold() for k in keys if k}
+
+        for key, row in table.items():
+            if isinstance(key, str) and key.casefold() in want_folded:
+                return clean_english_text(_extract_text(row), row)
+
+        return ""
 
     def get_pal_name(self, pal_id: str) -> str:
         pal_id = str(pal_id).strip()
@@ -119,11 +134,11 @@ class EnglishText:
         if not skill_id:
             return ""
 
-        return (
-            self.get(constants.EN_SKILL_NAME_FILE, f"ACTION_SKILL_{skill_id}")
-            or self.get(constants.EN_SKILL_NAME_FILE, f"COOP_{skill_id}")
-            or self.get(constants.EN_SKILL_NAME_FILE, f"ACTIVE_{skill_id}")
-        )
+        return self.get_first_casefold(constants.EN_SKILL_NAME_FILE, [
+            f"ACTION_SKILL_{skill_id}",
+            f"COOP_{skill_id}",
+            f"ACTIVE_{skill_id}",
+        ])
 
     def get_skill_desc(self, key: str) -> str:
         return self.get(constants.EN_SKILL_DESC_FILE, key)

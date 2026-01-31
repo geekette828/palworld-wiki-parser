@@ -52,7 +52,21 @@ def get_template_name_re(template_name: str) -> re.Pattern:
     key = template_name.strip().casefold()
     if key in _TEMPLATE_NAME_RE_CACHE:
         return _TEMPLATE_NAME_RE_CACHE[key]
-    pat = re.compile(r"\{\{\s*" + re.escape(template_name.strip()) + r"\b", re.IGNORECASE)
+
+    # Exact template match:
+    #   {{Pal|...}}
+    #   {{Pal}}
+    #   {{Pal
+    #    |...}}
+    #
+    # Does NOT match:
+    #   {{Pal Navigation}}
+    #   {{Paldeck}}
+    pat = re.compile(
+        r"\{\{\s*" + re.escape(template_name.strip()) + r"\s*(?=\||\}\})",
+        re.IGNORECASE,
+    )
+
     _TEMPLATE_NAME_RE_CACHE[key] = pat
     return pat
 
@@ -431,7 +445,15 @@ def patch_template_params_in_place(
             if trailing_comment:
                 new_first_line = (new_first_line + " " + trailing_comment.strip()).rstrip()
 
+            # Preserve any additional lines captured in the existing value block (e.g. section headers like <!-- Basics -->)
+            wiki_lines = wiki_val_block.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+            wiki_rest = ""
+            if len(wiki_lines) > 1:
+                wiki_rest = "\n".join(wiki_lines[1:]).rstrip("\n")
+
             new_block = f"{indent}|{wiki_key_spelling} = {new_first_line}"
+            if wiki_rest:
+                new_block = new_block + "\n" + wiki_rest
         else:
             exp_norm = exp_val_block.replace("\r\n", "\n").replace("\r", "\n").rstrip()
             new_block = f"{indent}|{wiki_key_spelling} = {exp_norm}"

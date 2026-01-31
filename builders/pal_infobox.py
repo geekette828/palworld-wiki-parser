@@ -276,6 +276,9 @@ def _replace_charactername_tags(text: str, english: EnglishText) -> str:
 
 _ITEMNAME_TAG_RE = re.compile(r"<itemName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
 _MAPOBJECTNAME_TAG_RE = re.compile(r"<mapObjectName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
+_ACTIVESKILLNAME_TAG_RE = re.compile(r"<activeSkillName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
+_UICOMMON_TAG_RE = re.compile(r"<uiCommon\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
+
 def _replace_item_and_object_tags(text: str, english: EnglishText) -> str:
     s = str(text or "")
 
@@ -294,6 +297,25 @@ def _replace_item_and_object_tags(text: str, english: EnglishText) -> str:
     s = _ITEMNAME_TAG_RE.sub(item_repl, s)
     s = _MAPOBJECTNAME_TAG_RE.sub(object_repl, s)
     return s
+
+def _replace_activeskillname_tags(text: str, english: EnglishText) -> str:
+    s = str(text or "")
+
+    def repl(m: re.Match) -> str:
+        skill_id = (m.group(1) or "").strip()
+        return english.get_active_skill_name(skill_id) or skill_id
+
+    return _ACTIVESKILLNAME_TAG_RE.sub(repl, s)
+
+def _replace_uicommon_tags(text: str, english: EnglishText) -> str:
+    s = str(text or "")
+
+    def repl(m: re.Match) -> str:
+        key = (m.group(1) or "").strip()
+        # COMMON_STATUS_HP -> "Health", etc.
+        return english.get(constants.EN_COMMON_TEXT_FILE, key) or key
+
+    return _UICOMMON_TAG_RE.sub(repl, s)
 
 def resolve_partner_skill_icon(desc: Any) -> str:
     s = str(desc or "").strip().lower()
@@ -380,6 +402,9 @@ def build_pal_infobox_wikitext(
     partner_skill_desc_raw = _lookup_text(pal_activate_rows, partner_skill_desc_key)
     partner_skill_desc_raw = _replace_charactername_tags(partner_skill_desc_raw, en)
     partner_skill_desc_raw = _replace_item_and_object_tags(partner_skill_desc_raw, en)
+    partner_skill_desc_raw = _replace_activeskillname_tags(partner_skill_desc_raw, en)
+    partner_skill_desc_raw = _replace_uicommon_tags(partner_skill_desc_raw, en)
+
     partner_skill_desc = clean_english_text(partner_skill_desc_raw).replace("\r", "").replace("\n", " ").strip()
 
     out.append(f"|partner_skill_name = {partner_skill_name}")

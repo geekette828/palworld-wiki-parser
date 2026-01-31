@@ -164,7 +164,7 @@ def build_pal_drop_wikitext(
     alpha_text = extract_drop_list(alpha_drop_row, en) if alpha_drop_row else ""
 
     out: List[str] = []
-    out.append("{{Pal Drop")
+    out.append("{{Item Drop")
     out.append(f"|palName = {pal_display_name}")
     out.append(f"|normal_drops = {normal_text}")
     out.append(f"|alpha_drops = {alpha_text}")

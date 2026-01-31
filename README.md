@@ -28,7 +28,7 @@ Palworld Parser/
 ├── exports/                                → Mass-export scripts (call builders, write files)
 │   ├── export_active_skill_infoboxes.py    → Outputs all Active Skill infoboxes
 │   ├── export_chest_drops.py               → Outputs several .txt files on treasure chest drops
-│   ├── export_chest_slot_chance.py         → Outputs a json file that can be pasted into Data:ChestSlotChance.json to properly calculate drop chances
+│   ├── export_chest_slot_chance.py         → Outputs a json file that can be pasted into Data:ChestSlotChance.json
 │   ├── export_fishing_locations.py
 │   ├── export_item_infoboxes.py            → Outputs all item infoboxes
 │   ├── export_item_recipes.py              → Outputs all item crafting recipes
@@ -48,7 +48,8 @@ Palworld Parser/
 │
 ├── pywikibot_tools/
 │   ├── compare_pages/                      → Page comparison & fix scripts
-│   │   └── compare_page_item.py    (still a WIP)
+│   │   ├── compare_page_item.py            → Compares item infobox and recipe templates to find mismatches
+│   │   └── compare_page_pal.py             → Compares Pal infobox, drops, and breeding templates to find mismatches
 │   │
 │   ├── create_pages/                       → Page creation scripts
 │   │   ├── create_page_active_skill.py
