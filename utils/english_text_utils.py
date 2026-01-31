@@ -3,8 +3,18 @@ import re
 import json
 
 from config import constants
+from config.name_map import ELEMENT_NAME_MAP
 from typing import Any, Dict, Iterable, List, Optional, Dict
 from utils.json_datatable_utils import extract_datatable_rows
+
+_NUM_TAG_RE = re.compile(r"<Num(?:Blue|Red)_\d+>")
+_SELF_CLOSING_TAG_RE = re.compile(r"<[^>]+/>")
+_GENERIC_TAG_RE = re.compile(r"<[^>]+>")
+_EFFECTVALUE_TOKEN_RE = re.compile(r"\{EffectValue(\d+)\}")
+_UICOMMON_TAG_RE = re.compile(
+    r"<\s*uiCommon\s+id=\|\s*(?P<key>[^|]+)\s*\|/\s*>",
+    re.IGNORECASE,
+)
 
 def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
@@ -172,12 +182,6 @@ class EnglishText:
 
         return missing
 
-_NUM_TAG_RE = re.compile(r"<Num(?:Blue|Red)_\d+>")
-_SELF_CLOSING_TAG_RE = re.compile(r"<[^>]+/>")
-_GENERIC_TAG_RE = re.compile(r"<[^>]+>")
-_EFFECTVALUE_TOKEN_RE = re.compile(r"\{EffectValue(\d+)\}")
-
-
 def _format_effect_value_token(v: Any) -> str:
     """
     For inserting into {EffectValue#} placeholders (WITHOUT adding %).
@@ -195,7 +199,6 @@ def _format_effect_value_token(v: Any) -> str:
 
     return str(n).rstrip("0").rstrip(".")
 
-
 def substitute_effectvalue_placeholders(text: str, row: Optional[Dict[str, Any]]) -> str:
     """
     Replace {EffectValue1}, {EffectValue2}, ... with row['EffectValue#'].
@@ -211,17 +214,31 @@ def substitute_effectvalue_placeholders(text: str, row: Optional[Dict[str, Any]]
 
     return _EFFECTVALUE_TOKEN_RE.sub(repl, str(text))
 
-
 def strip_palworld_markup(text: str) -> str:
     """
     Remove Palworld/Unreal inline markup like:
     - <NumBlue_13> ... </> and <NumRed_13> ... </>
     - other <...> tags and <.../> tags
+
+    Also converts <uiCommon id=|COMMON_ELEMENT_NAME_X|/> into readable element names.
     """
     s = str(text or "")
 
     # normalize line endings
     s = s.replace("\r", "")
+
+    # Convert element uiCommon tokens BEFORE we strip self-closing tags.
+    def _uicommon_repl(m: re.Match) -> str:
+        key = (m.group("key") or "").strip()
+
+        if key.startswith("COMMON_ELEMENT_NAME_"):
+            raw = key[len("COMMON_ELEMENT_NAME_"):].strip()
+            return ELEMENT_NAME_MAP.get(raw, raw)
+
+        # Any other uiCommon token is "junk" for now
+        return ""
+
+    s = _UICOMMON_TAG_RE.sub(_uicommon_repl, s)
 
     # remove number color tags + their close tag
     s = _NUM_TAG_RE.sub("", s)
@@ -232,7 +249,6 @@ def strip_palworld_markup(text: str) -> str:
     s = _GENERIC_TAG_RE.sub("", s)
 
     return s.strip()
-
 
 def clean_english_text(text: str, row: Optional[Dict[str, Any]] = None) -> str:
     """
