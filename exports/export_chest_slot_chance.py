@@ -1,13 +1,12 @@
 import os
 import sys
+import json
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
 from utils.console_utils import force_utf8_stdout
-from builders.chest_slot_chance import (
-    build_field_lottery_slot_chances_json_text,
-)
+from builders.chest_slot_chance import build_chest_slot_chance_models
 
 force_utf8_stdout()
 
@@ -26,7 +25,9 @@ def write_text(path: str, text: str) -> None:
 def main() -> None:
     print("🔄 Building chest slot chance JSON...")
 
-    text = build_field_lottery_slot_chances_json_text()
+    data = build_chest_slot_chance_models()
+    text = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True).rstrip() + "\n"
+
     output_path = os.path.join(output_directory, "ChestSlotChance.json")
 
     write_text(output_path, text)

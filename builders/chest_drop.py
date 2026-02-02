@@ -58,6 +58,22 @@ class DungeonItemLotteryRow(TypedDict, total=False):
     ItemFieldLotteryName: str
 
 
+class ChestDropEntry(TypedDict, total=False):
+    slot_number: int
+    index_in_slot: int
+    item_name: str
+    min_num: int
+    max_num: int
+    weight: float
+
+
+class ChestDropGroup(TypedDict, total=False):
+    chest_name: str
+    grade_number: str
+    location: str
+    entries: List[ChestDropEntry]
+
+
 def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -157,24 +173,20 @@ def _load_dungeon_item_lottery_rows(*, input_path: str) -> Dict[str, DungeonItem
     return out
 
 
-def _format_chest_drop_block(
+def _build_group(
     *,
     chest_name: str,
     grade_number: str,
     location: str,
     rows: List[ItemLotteryRow],
     en: EnglishText,
-) -> str:
+) -> ChestDropGroup:
     by_slot: DefaultDict[int, List[ItemLotteryRow]] = defaultdict(list)
     for r in rows:
         slot = _to_int(r.get("SlotNo"))
         by_slot[slot].append(r)
 
-    lines: List[str] = []
-    lines.append("{{Chest Drop")
-    lines.append(f"|chestName = {chest_name}")
-    lines.append(f"|grade = {grade_number}")
-    lines.append(f"|location = {location}".rstrip())
+    entries: List[ChestDropEntry] = []
 
     for slot in sorted(by_slot.keys()):
         slot_rows = by_slot[slot]
@@ -190,25 +202,29 @@ def _format_chest_drop_block(
         for rr in slot_rows_sorted:
             idx += 1
 
-            item_name = _get_item_display_name(en, rr.get("StaticItemId"))
-            min_num = _to_int(rr.get("MinNum"))
-            max_num = _to_int(rr.get("MaxNum"))
-            weight = _to_float(rr.get("WeightInSlot"))
+            entries.append(
+                {
+                    "slot_number": slot,
+                    "index_in_slot": idx,
+                    "item_name": _get_item_display_name(en, rr.get("StaticItemId")),
+                    "min_num": _to_int(rr.get("MinNum")),
+                    "max_num": _to_int(rr.get("MaxNum")),
+                    "weight": _to_float(rr.get("WeightInSlot")),
+                }
+            )
 
-            key_prefix = f"{slot}_{idx}"
-            lines.append(f"  |{key_prefix}_name = {item_name}")
-            lines.append(f"   |{key_prefix}_min = {min_num}")
-            lines.append(f"   |{key_prefix}_max = {max_num}")
-            lines.append(f"   |{key_prefix}_weight = {weight}")
-
-    lines.append("}}")
-    return "\n".join(lines)
+    return {
+        "chest_name": chest_name,
+        "grade_number": grade_number,
+        "location": location,
+        "entries": entries,
+    }
 
 
-def build_enemy_base_chest_drops_export_text(
+def build_enemy_base_chest_drop_groups(
     *,
     input_path: str = item_lottery_input_file,
-) -> str:
+) -> List[ChestDropGroup]:
     en = EnglishText()
     rows_by_id = _load_item_lottery_rows(input_path=input_path)
 
@@ -229,34 +245,27 @@ def build_enemy_base_chest_drops_export_text(
         fname, g = k
         return (fname.casefold(), _to_int(g))
 
-    blocks: List[str] = []
+    out: List[ChestDropGroup] = []
     for (field_name, grade_number) in sorted(grouped.keys(), key=group_sort_key):
         location = build_enemy_base_location(field_name, grade_number)
 
-        block = _format_chest_drop_block(
-            chest_name=field_name,
-            grade_number=grade_number,
-            location=location,
-            rows=grouped[(field_name, grade_number)],
-            en=en,
+        out.append(
+            _build_group(
+                chest_name=field_name,
+                grade_number=grade_number,
+                location=location,
+                rows=grouped[(field_name, grade_number)],
+                en=en,
+            )
         )
 
-        blocks.append(block)
-
-    return ("\n\n".join(blocks).rstrip() + "\n") if blocks else ""
+    return out
 
 
-def build_oilrig_chest_drops_export_text(
+def build_oilrig_chest_drop_groups(
     *,
     input_path: str = item_lottery_input_file,
-) -> str:
-    """
-    Export #3: Oil Rigs
-    - DT_ItemLotteryDataTable.json provides FieldName, SlotNo, WeightInSlot, StaticItemId, MinNum, MaxNum, TreasureBoxGrade
-    - Filter to FieldName starting with "Oilrig_"
-    - Group by (FieldName, TreasureBoxGrade number)
-    - location left blank for now
-    """
+) -> List[ChestDropGroup]:
     en = EnglishText()
     rows_by_id = _load_item_lottery_rows(input_path=input_path)
 
@@ -277,35 +286,26 @@ def build_oilrig_chest_drops_export_text(
         fname, g = k
         return (fname.casefold(), _to_int(g))
 
-    blocks: List[str] = []
+    out: List[ChestDropGroup] = []
     for (field_name, grade_number) in sorted(grouped.keys(), key=group_sort_key):
-        block = _format_chest_drop_block(
-            chest_name=field_name,
-            grade_number=grade_number,
-            location="",
-            rows=grouped[(field_name, grade_number)],
-            en=en,
+        out.append(
+            _build_group(
+                chest_name=field_name,
+                grade_number=grade_number,
+                location="",
+                rows=grouped[(field_name, grade_number)],
+                en=en,
+            )
         )
-        blocks.append(block)
 
-    return ("\n\n".join(blocks).rstrip() + "\n") if blocks else ""
+    return out
 
 
-def build_dungeon_chest_drops_export_text(
+def build_dungeon_chest_drop_groups(
     *,
     dungeon_input_path: str = dungeon_item_lottery_input_file,
     item_lottery_path: str = item_lottery_input_file,
-) -> str:
-    """
-    Export #2: Dungeons
-    - DT_DungeonItemLotteryDataTable.json provides:
-        - SpawnAreaId (ignore TestDebug*)
-        - Type (Normal/Special)
-        - ItemFieldLotteryName
-    - chestName = ItemFieldLotteryName:TypeLeaf
-    - ItemFieldLotteryName is used to match DT_ItemLotteryDataTable.FieldName
-    - Then group by TreasureBoxGrade number (same as Enemy Base)
-    """
+) -> List[ChestDropGroup]:
     en = EnglishText()
 
     dungeon_rows_by_id = _load_dungeon_item_lottery_rows(input_path=dungeon_input_path)
@@ -351,27 +351,28 @@ def build_dungeon_chest_drops_export_text(
         chest, g = k
         return (chest.casefold(), _to_int(g))
 
-    blocks: List[str] = []
+    out: List[ChestDropGroup] = []
     for (chest_name, grade_number) in sorted(grouped.keys(), key=group_sort_key):
-        block = _format_chest_drop_block(
-            chest_name=chest_name,
-            grade_number=grade_number,
-            location="",
-            rows=grouped[(chest_name, grade_number)],
-            en=en,
+        out.append(
+            _build_group(
+                chest_name=chest_name,
+                grade_number=grade_number,
+                location="",
+                rows=grouped[(chest_name, grade_number)],
+                en=en,
+            )
         )
-        blocks.append(block)
 
-    return ("\n\n".join(blocks).rstrip() + "\n") if blocks else ""
+    return out
 
 
-def build_all_chest_drop_exports() -> Dict[str, str]:
-    out: Dict[str, str] = {}
+def build_all_chest_drop_export_models() -> Dict[str, List[ChestDropGroup]]:
+    out: Dict[str, List[ChestDropGroup]] = {}
 
-    out["chest_enemy_base.txt"] = build_enemy_base_chest_drops_export_text()
-    out["chest_dungeon.txt"] = build_dungeon_chest_drops_export_text()
-    out["chest_oilrig.txt"] = build_oilrig_chest_drops_export_text()
+    out["chest_enemy_base.txt"] = build_enemy_base_chest_drop_groups()
+    out["chest_dungeon.txt"] = build_dungeon_chest_drop_groups()
+    out["chest_oilrig.txt"] = build_oilrig_chest_drop_groups()
 
-    out["chest_world.txt"] = ""
+    out["chest_world.txt"] = []
 
     return out

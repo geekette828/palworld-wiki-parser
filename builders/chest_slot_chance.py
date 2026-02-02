@@ -30,7 +30,6 @@ def _load_rows(path: str) -> Dict[str, Any]:
 def build_chest_related_field_names() -> set[str]:
     allowed: set[str] = set()
 
-    # EnemyCamp_* from item lottery
     item_rows = _load_rows(item_lottery_input_file)
     for _, r in item_rows.items():
         if not isinstance(r, dict):
@@ -39,7 +38,6 @@ def build_chest_related_field_names() -> set[str]:
         if field_name.startswith("EnemyCamp_") or field_name.startswith("Oilrig_"):
             allowed.add(field_name)
 
-    # Dungeon spawner names (ItemFieldLotteryName) excluding TestDebug*
     dungeon_rows = _load_rows(dungeon_item_lottery_input_file)
     for _, r in dungeon_rows.items():
         if not isinstance(r, dict):
@@ -53,7 +51,7 @@ def build_chest_related_field_names() -> set[str]:
 
     return allowed
 
-def build_field_lottery_slot_chances_json(
+def build_chest_slot_chance_models(
     *,
     input_path: str = field_lottery_input_file,
     chest_only: bool = True,
@@ -86,21 +84,3 @@ def build_field_lottery_slot_chances_json(
             out[field_name] = slot_map
 
     return out
-
-
-def build_field_lottery_slot_chances_json_text(
-    *,
-    input_path: str = field_lottery_input_file,
-    chest_only: bool = True,
-    indent: int = 2,
-) -> str:
-    data = build_field_lottery_slot_chances_json(
-        input_path=input_path,
-        chest_only=chest_only,
-    )
-
-    # Stable, paste-friendly JSON for Data: namespace
-    text = json.dumps(data, ensure_ascii=False, indent=indent, sort_keys=True)
-    return text.rstrip() + "\n"
-
-
