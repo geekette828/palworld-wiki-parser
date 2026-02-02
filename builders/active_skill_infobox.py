@@ -10,11 +10,7 @@ from config import constants
 from config.name_map import ELEMENT_NAME_MAP, ACTIVE_SKILL_STATUS_EFFECT_MAP
 from utils.english_text_utils import EnglishText, clean_english_text
 from utils.json_datatable_utils import extract_datatable_rows
-from utils.console_utils import force_utf8_stdout
-
-force_utf8_stdout()
-
-param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Waza", "DT_WazaDataTable.json")
+waza_input_file = os.path.join(constants.INPUT_DIRECTORY, "Waza", "DT_WazaDataTable.json")
 item_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemDataTable.json")
 en_name_file = constants.EN_SKILL_NAME_FILE
 en_description_file = constants.EN_SKILL_DESC_FILE
@@ -192,8 +188,8 @@ def _load_waza_rows() -> Dict[str, Dict[str, Any]]:
     if _CACHED_WAZA_ROWS is not None:
         return _CACHED_WAZA_ROWS
 
-    data = _load_json(param_input_file)
-    _CACHED_WAZA_ROWS = extract_datatable_rows(data, source=os.path.basename(param_input_file)) or {}
+    data = _load_json(waza_input_file)
+    _CACHED_WAZA_ROWS = extract_datatable_rows(data, source=os.path.basename(waza_input_file)) or {}
     return _CACHED_WAZA_ROWS
 
 
@@ -213,7 +209,7 @@ def _find_waza_row_for_skill_id(waza_rows: Dict[str, Dict[str, Any]], skill_id: 
     return None
 
 
-def resolve_skill_id_from_english_name(english_skill_name: str, english: Optional[EnglishText] = None) -> str:
+def resolve_active_skill_id_from_name(english_skill_name: str, english: Optional[EnglishText] = None) -> str:
     english = english or EnglishText()
     name_to_id = _build_english_name_to_id_map(english)
     key = _normalize_english_key(english_skill_name)
@@ -275,9 +271,17 @@ def _build_active_skill_infobox_model_from_skill_id(
     return model
 
 
-def build_active_skill_infobox_model(english_skill_name: str) -> ActiveSkillInfoboxModel:
+def build_active_skill_infobox_model_by_id(skill_id: str) -> ActiveSkillInfoboxModel:
+    """Builder entry-point: Given an internal skill_id, return the canonical infobox model."""
     english = EnglishText()
-    skill_id = resolve_skill_id_from_english_name(english_skill_name, english=english)
+    waza_rows = _load_waza_rows()
+    fruit_ids = _load_skill_ids_with_skillcards()
+    return _build_active_skill_infobox_model_from_skill_id(skill_id, english=english, waza_rows=waza_rows, fruit_ids=fruit_ids)
+
+
+def build_active_skill_infobox_model_from_name(english_skill_name: str) -> ActiveSkillInfoboxModel:
+    english = EnglishText()
+    skill_id = resolve_active_skill_id_from_name(english_skill_name, english=english)
     if not skill_id:
         return {}
 
