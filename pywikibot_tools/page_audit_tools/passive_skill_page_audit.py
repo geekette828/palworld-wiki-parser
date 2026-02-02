@@ -8,7 +8,7 @@ from config import constants
 from pywikibot import pagegenerators
 from utils.console_utils import force_utf8_stdout
 from pathlib import Path
-from format_tools.passive_skill_infobox import build_infobox_map
+from builders.passive_skill_infobox import build_all_passive_skill_models
 force_utf8_stdout()
 
 
@@ -44,8 +44,8 @@ def main() -> None:
     site.login()
 
     print("🔍 Building passive skill name set from data-mine...")
-    infobox_map = build_infobox_map()
-    data_skill_titles = {normalize_title(name) for name in infobox_map.keys()}
+    models = build_all_passive_skill_models()
+    data_skill_titles = {normalize_title(m.get("display_name", "")) for m in models if m.get("display_name")}
 
     print(f"✅ Data-mine passive skills: {len(data_skill_titles)}")
 
