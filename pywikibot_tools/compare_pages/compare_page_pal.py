@@ -15,7 +15,7 @@ from utils.english_text_utils import EnglishText  # type: ignore
 from builders.pal_infobox import (  # type: ignore
     load_rows as pal_infobox_load_rows,
     build_waza_master_index,
-    build_pal_infobox_model,
+    build_pal_infobox_model_by_id,
     build_pal_order as build_pal_order_infobox,
 )
 from exports.export_pal_infoboxes import render_pal_infobox  # type: ignore
@@ -23,13 +23,13 @@ from exports.export_pal_infoboxes import render_pal_infobox  # type: ignore
 from builders.pal_drops import (  # type: ignore
     load_json as pal_drops_load_json,
     index_drop_rows_by_character_id,
-    build_pal_drops_model,
+    build_pal_drops_model_by_id,
     build_pal_order as build_pal_order_drops,
 )
 from exports.export_pal_drops import render_pal_drops  # type: ignore
 
 from builders.pal_breeding import (  # type: ignore
-    build_pal_breeding_model,
+    build_pal_breeding_model_by_id,
     build_pal_order as build_pal_order_breeding,
 )
 from exports.export_pal_breeding import render_pal_breeding  # type: ignore
@@ -188,7 +188,7 @@ def _compare_and_patch_page(
         if wiki_block is None or s is None or e is None:
             warnings.append("No {{Pal}} template found on page.")
         else:
-            expected_model = build_pal_infobox_model(
+            expected_model = build_pal_infobox_model_by_id(
                 pal_id,
                 rows=infobox_ctx["param_rows"],
                 waza_by_pal_id=infobox_ctx["waza_by_pal_id"],
@@ -232,7 +232,7 @@ def _compare_and_patch_page(
         if wiki_block is None or s is None or e is None:
             warnings.append("No {{Item Drop}} template found on page.")
         else:
-            drops_model = build_pal_drops_model(
+            drops_model = build_pal_drops_model_by_id(
                 pal_id,
                 drops_by_character_id=drops_ctx["drops_by_character_id"],
                 en=en,
@@ -278,7 +278,7 @@ def _compare_and_patch_page(
         if wiki_block is None or s is None or e is None:
             warnings.append("No {{Breeding}} template found on page.")
         else:
-            breeding_model = build_pal_breeding_model(
+            breeding_model = build_pal_breeding_model_by_id(
                 pal_id,
                 rows=breeding_ctx["param_rows"],
                 en=en,

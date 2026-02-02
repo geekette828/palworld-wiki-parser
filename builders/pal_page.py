@@ -324,6 +324,7 @@ def build_pal_page_wikitext(
 
     infobox = sections.get("infobox", "").strip()
     if infobox:
+        out.append("{{Pal Navigation}}")
         out.append(infobox)
 
     palpedia = sections.get("palpedia", "").strip()
