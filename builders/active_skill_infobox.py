@@ -22,6 +22,7 @@ en_description_file = constants.EN_SKILL_DESC_FILE
 _CACHED_WAZA_ROWS: Optional[Dict[str, Dict[str, Any]]] = None
 _CACHED_SKILL_IDS_WITH_SKILLCARDS: Optional[set[str]] = None
 
+
 class ActiveSkillInfoboxModel(TypedDict, total=False):
     skill_id: str
     display_name: str
@@ -35,6 +36,7 @@ class ActiveSkillInfoboxModel(TypedDict, total=False):
     status2: str
     chance2: str
     fruit: bool
+
 
 _CHARACTERNAME_TAG_RE = re.compile(r"<characterName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
 
@@ -101,7 +103,6 @@ def _load_skill_ids_with_skillcards() -> set[str]:
         if not str(row_name).startswith("SkillCard_"):
             continue
 
-        # If this flag exists and is false, treat it as not obtainable/usable
         if row.get("bLegalInGame") is False:
             continue
 
@@ -160,17 +161,10 @@ def _normalize_english_key(s: str) -> str:
 
 
 def _build_english_name_to_id_map(english: EnglishText) -> Dict[str, str]:
-    """
-    Invert DT_SkillNameText_Common entries so we can accept English skill names as inputs.
-    We only map keys that look like active skills:
-      ACTION_SKILL_<id>, COOP_<id>, ACTIVE_<id>
-    """
     raw = _load_json(en_name_file)
     rows = extract_datatable_rows(raw, source=os.path.basename(en_name_file)) or {}
 
     mapping: Dict[str, str] = {}
-
-    # Prefer ACTION_SKILL_ over COOP_ over ACTIVE_ if collisions happen
     prefixes = ["ACTION_SKILL_", "COOP_", "ACTIVE_"]
 
     for prefix in prefixes:
@@ -226,24 +220,22 @@ def resolve_skill_id_from_english_name(english_skill_name: str, english: Optiona
     return name_to_id.get(key, "")
 
 
-def build_active_skill_infobox_model(english_skill_name: str) -> ActiveSkillInfoboxModel:
-    """
-    Builder entry-point:
-    Given an English skill name, return canonical infobox fields (model).
-    """
-    english = EnglishText()
-    skill_id = resolve_skill_id_from_english_name(english_skill_name, english=english)
+def _build_active_skill_infobox_model_from_skill_id(
+    skill_id: str,
+    *,
+    english: EnglishText,
+    waza_rows: Dict[str, Dict[str, Any]],
+    fruit_ids: set[str],
+) -> ActiveSkillInfoboxModel:
     if not skill_id:
         return {}
 
-    waza_rows = _load_waza_rows()
     row = _find_waza_row_for_skill_id(waza_rows, skill_id)
     if not row:
         return {}
 
-    has_fruit = skill_id in _load_skill_ids_with_skillcards()
-
-    display_name = english.get_active_skill_name(skill_id) or _trim(english_skill_name)
+    has_fruit = skill_id in fruit_ids
+    display_name = english.get_active_skill_name(skill_id) or _trim(skill_id)
 
     desc_key = f"ACTION_SKILL_{skill_id}"
     desc_raw = english.get_raw(en_description_file, desc_key)
@@ -268,7 +260,6 @@ def build_active_skill_infobox_model(english_skill_name: str) -> ActiveSkillInfo
     }
 
     if status_pairs:
-        # Only supports 2 per template fields
         (status1, chance1) = status_pairs[0]
         model["status"] = status1
         model["chance"] = chance1
@@ -284,102 +275,46 @@ def build_active_skill_infobox_model(english_skill_name: str) -> ActiveSkillInfo
     return model
 
 
-def render_active_skill_infobox(model: ActiveSkillInfoboxModel, *, include_heading: bool = True) -> str:
-    """
-    Render entry-point:
-    Convert an infobox model into canonical wikitext.
-    """
-    if not model:
-        return ""
+def build_active_skill_infobox_model(english_skill_name: str) -> ActiveSkillInfoboxModel:
+    english = EnglishText()
+    skill_id = resolve_skill_id_from_english_name(english_skill_name, english=english)
+    if not skill_id:
+        return {}
 
-    display_name = model.get("display_name", "").strip()
-    description = model.get("description", "")
-    element = model.get("element", "")
-    ct = model.get("ct", "")
-    power = model.get("power", "")
-    rng = model.get("range", "")
-    fruit = "True" if model.get("fruit") else "False"
+    waza_rows = _load_waza_rows()
+    fruit_ids = _load_skill_ids_with_skillcards()
 
-    lines: List[str] = []
-
-    if include_heading:
-        lines.append(f"## {display_name}")
-
-    lines.extend([
-        "{{Active Skill",
-        f"|description = {description}",
-        f"|element = {element}",
-        f"|ct = {ct}",
-        f"|power = {power}",
-        f"|range = {rng}",
-    ])
-
-    status = model.get("status", "")
-    chance = model.get("chance", "")
-
-    status2 = model.get("status2", "")
-    chance2 = model.get("chance2", "")
-
-    if status or chance:
-        lines.append(f"|status = {status}")
-        lines.append(f"|chance = {chance}")
-
-        if status2 or chance2:
-            lines.append(f"|status2 = {status2}")
-            lines.append(f"|chance2 = {chance2}")
-    else:
-        lines.append("|status = ")
-        lines.append("|chance = ")
-
-    lines.extend([
-        f"|fruit = {fruit}",
-        "}}",
-        "",
-        "",
-    ])
-
-    return "\n".join(lines)
+    return _build_active_skill_infobox_model_from_skill_id(
+        skill_id,
+        english=english,
+        waza_rows=waza_rows,
+        fruit_ids=fruit_ids,
+    )
 
 
-def build_active_skill_infobox(english_skill_name: str) -> str:
-    """
-    Convenience wrapper (keeps your old call style):
-    pass an English skill name, get rendered infobox block back.
-    """
-    model = build_active_skill_infobox_model(english_skill_name)
-    return render_active_skill_infobox(model, include_heading=True)
-
-
-def build_all_active_skill_infobox_blocks() -> List[Tuple[str, str]]:
-    """
-    Returns sorted list of (display_name, rendered_block). No file IO.
-    """
+def build_all_active_skill_infobox_models() -> List[Tuple[str, ActiveSkillInfoboxModel]]:
     english = EnglishText()
     waza_rows = _load_waza_rows()
+    fruit_ids = _load_skill_ids_with_skillcards()
 
     name_to_id = _build_english_name_to_id_map(english)
-    id_to_name: Dict[str, str] = {}
+
+    id_to_display: Dict[str, str] = {}
     for _, skill_id in name_to_id.items():
-        id_to_name[skill_id] = english.get_active_skill_name(skill_id) or id_to_name.get(skill_id, "")
+        if skill_id not in id_to_display:
+            id_to_display[skill_id] = english.get_active_skill_name(skill_id) or ""
 
-    blocks: List[Tuple[str, str]] = []
+    out: List[Tuple[str, ActiveSkillInfoboxModel]] = []
 
-    for skill_id, display_name in id_to_name.items():
-        row = _find_waza_row_for_skill_id(waza_rows, skill_id)
-        if not row:
-            continue
+    for skill_id, display_name in id_to_display.items():
+        model = _build_active_skill_infobox_model_from_skill_id(
+            skill_id,
+            english=english,
+            waza_rows=waza_rows,
+            fruit_ids=fruit_ids,
+        )
+        if model:
+            out.append((display_name or model.get("display_name", ""), model))
 
-        block = build_active_skill_infobox(display_name)
-        if block:
-            blocks.append((display_name, block))
-
-    blocks.sort(key=lambda x: x[0].casefold())
-    return blocks
-
-
-def build_all_active_skill_infoboxes_text() -> str:
-    """
-    Returns the full mass-list text (concatenated blocks). No file IO.
-    """
-    blocks = build_all_active_skill_infobox_blocks()
-    return "".join(block for _, block in blocks)
+    out.sort(key=lambda x: (x[0] or "").casefold())
+    return out
