@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
+from typing import Any, List, Tuple, TypedDict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -33,7 +33,7 @@ EGG_ELEMENT_MAP = {
 
 
 class PalBreedingModel(TypedDict, total=False):
-    base: str
+    base_id: str
     display_name: str
 
     breeding_rank: str
@@ -136,17 +136,17 @@ def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
     return f"{base}{suf}"
 
 
-def build_pal_order(rows: dict) -> List[str]:
+def build_pal_order(param_rows: dict) -> List[str]:
     pal_order = []
 
-    for key, row in rows.items():
+    for key, row in (param_rows or {}).items():
         if not isinstance(key, str):
             continue
         if not key.startswith("BOSS_"):
             continue
 
-        base = key.replace("BOSS_", "")
-        normal = rows.get(base)
+        base_id = key.replace("BOSS_", "")
+        normal = param_rows.get(base_id)
         if not isinstance(normal, dict):
             continue
 
@@ -154,29 +154,29 @@ def build_pal_order(rows: dict) -> List[str]:
         if pal_no == "":
             continue
 
-        pal_order.append((pal_no, base))
+        pal_order.append((pal_no, base_id))
 
     pal_order.sort(key=lambda x: (int(x[0][:3]), x[0][3:]))
-    return [base for _, base in pal_order]
+    return [base_id for _, base_id in pal_order]
 
 
-def build_pal_breeding_model(
-    base: str,
+def build_pal_breeding_model_by_id(
+    base_id: str,
     *,
     rows: dict,
     en: EnglishText,
 ) -> PalBreedingModel:
-    normal = rows.get(base)
-    boss = rows.get(f"BOSS_{base}")
+    normal = rows.get(base_id)
+    boss = rows.get(f"BOSS_{base_id}")
 
     if not isinstance(normal, dict) or not isinstance(boss, dict):
         return {}
 
-    pal_display_name = en.get_pal_name(base) or base
+    display_name = en.get_pal_name(base_id) or base_id
 
     model: PalBreedingModel = {
-        "base": base,
-        "display_name": pal_display_name,
+        "base_id": base_id,
+        "display_name": display_name,
         "breeding_rank": fmt(normal.get("CombiRank")),
         "male_probability": fmt(normal.get("MaleProbability")),
         "combi_duplicate_priority": fmt(normal.get("CombiDuplicatePriority")),
@@ -187,45 +187,19 @@ def build_pal_breeding_model(
     return model
 
 
-def build_all_pal_breeding_models(*, include_headers: bool = True) -> List[Tuple[str, PalBreedingModel]]:
+def build_all_pal_breeding_models() -> List[Tuple[str, PalBreedingModel]]:
     with open(param_input_file, "r", encoding="utf-8") as f:
         param_data = json.load(f)
 
     rows = extract_datatable_rows(param_data, source="DT_PalMonsterParameter")
     en = EnglishText()
 
-    base_names = build_pal_order(rows)
+    base_ids = build_pal_order(rows)
 
     out: List[Tuple[str, PalBreedingModel]] = []
-    for base in base_names:
-        model = build_pal_breeding_model(base, rows=rows, en=en)
+    for base_id in base_ids:
+        model = build_pal_breeding_model_by_id(base_id, rows=rows, en=en)
         if model:
-            out.append((model.get("display_name", base), model))
+            out.append((model.get("display_name", base_id), model))
 
     return out
-
-
-# Backwards-compatible wrapper for existing callers (compare script, etc.)
-def build_pal_breeding_wikitext(base: str, *, rows: dict, en: EnglishText, include_header: bool = True) -> str:
-    from exports.export_pal_breeding import render_pal_breeding  # local import to avoid circulars
-
-    model = build_pal_breeding_model(base, rows=rows, en=en)
-    if not model:
-        return ""
-    return render_pal_breeding(model, include_header=include_header)
-
-
-# Backwards-compatible export helper (older exporter imported this)
-def build_all_pal_breeding_text(*, include_headers: bool = True) -> str:
-    from exports.export_pal_breeding import render_pal_breeding  # local import to avoid circulars
-
-    items = build_all_pal_breeding_models(include_headers=include_headers)
-
-    blocks: List[str] = []
-    for _, model in items:
-        block = render_pal_breeding(model, include_header=include_headers)
-        if block:
-            blocks.append(block)
-            blocks.append("\n")
-
-    return "".join(blocks).rstrip() + "\n"

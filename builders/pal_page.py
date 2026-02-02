@@ -6,23 +6,29 @@ from typing import Dict, List, Optional
 from config import constants
 
 from utils.english_text_utils import EnglishText, clean_english_text
-from utils.json_datatable_utils import extract_datatable_rows
 
 from builders.pal_infobox import (
     load_rows,
     build_waza_master_index,
-    build_pal_infobox_wikitext,
+    build_pal_infobox_model_by_id,
     after_double_colon,
     normalize_element,
 )
+from exports.export_pal_infoboxes import render_pal_infobox
+
 from builders.pal_drops import (
     load_json,
     index_drop_rows_by_character_id,
-    build_pal_drop_wikitext,
+    build_pal_drops_model_by_id,
 )
+from exports.export_pal_drops import render_pal_drops
+
 from builders.pal_breeding import (
-    build_pal_breeding_wikitext,
+    build_pal_breeding_model_by_id,
 )
+from exports.export_pal_breeding import render_pal_breeding
+
+from utils.json_datatable_utils import extract_datatable_rows
 
 
 PARAM_INPUT_FILE = os.path.join(
@@ -43,10 +49,15 @@ ACTIVE_SKILL_INPUT_FILE = os.path.join(
     "DT_WazaMasterLevel.json",
 )
 
+_PAL_ACTIVATE_TEXT_INPUT_FILE = constants.EN_PAL_ACTIVATE_FILE
+_PARTNER_SKILL_NAME_TEXT_INPUT_FILE = constants.EN_SKILL_NAME_FILE
+
+
 _CHARACTER_NAME_TAG_RE = re.compile(
     r"<characterName\b[^|>]*\|([^|>]+)\|/>",
     flags=re.IGNORECASE,
 )
+
 
 def _resolve_character_name_tags(text: str, en: EnglishText) -> str:
     s = str(text or "")
@@ -61,15 +72,9 @@ def _resolve_character_name_tags(text: str, en: EnglishText) -> str:
 
 
 def _clean_palpedia_description(raw: str, en: EnglishText, row: Optional[dict]) -> str:
-    # Only special-case CRLF -> space (leave lone \r handling to existing utils)
     s = str(raw or "").replace("\r\n", " ")
-
-    # Must resolve BEFORE clean_english_text strips tags
     s = _resolve_character_name_tags(s, en)
-
     s = clean_english_text(s, row)
-
-    # Compact whitespace for stable output
     return " ".join(s.split())
 
 
@@ -109,8 +114,8 @@ AI_BEHAVIOR_TEMPLATES: Dict[str, str] = {
 }
 
 
-def _get_primary_element(rows: Dict[str, dict], base: str) -> str:
-    row = rows.get(base)
+def _get_primary_element(rows: Dict[str, dict], base_id: str) -> str:
+    row = rows.get(base_id)
     if not isinstance(row, dict):
         return ""
 
@@ -118,8 +123,8 @@ def _get_primary_element(rows: Dict[str, dict], base: str) -> str:
     return normalize_element(raw)
 
 
-def _get_ai_response(rows: Dict[str, dict], base: str) -> str:
-    row = rows.get(base)
+def _get_ai_response(rows: Dict[str, dict], base_id: str) -> str:
+    row = rows.get(base_id)
     if not isinstance(row, dict):
         return ""
     v = row.get("AIResponse")
@@ -167,49 +172,52 @@ def _extract_template_block(wikitext: str, template_name: str) -> str:
 
 
 def build_pal_page_sections(
-    base: str,
+    base_id: str,
     *,
     rows: Dict[str, dict],
     waza_by_pal_id: Dict[str, list],
-    drops_by_character_id: Dict[str, list],
+    drops_by_character_id: Dict[str, dict],
+    pal_activate_rows: dict,
+    partner_skill_name_rows: dict,
     en: EnglishText,
     options: Optional[PalPageOptions] = None,
 ) -> Dict[str, str]:
     options = options or PalPageOptions()
 
-    base = str(base or "").strip()
-    if not base:
+    base_id = str(base_id or "").strip()
+    if not base_id:
         return {}
 
-    normal = rows.get(base)
-    boss = rows.get(f"BOSS_{base}")
+    normal = rows.get(base_id)
+    boss = rows.get(f"BOSS_{base_id}")
     if not isinstance(normal, dict) or not isinstance(boss, dict):
         return {}
 
-    pal_name = en.get_pal_name(base)  # uses localization lookup :contentReference[oaicite:3]{index=3}
-    ele1 = _get_primary_element(rows, base)
+    pal_name = en.get_pal_name(base_id) or base_id
+    ele1 = _get_primary_element(rows, base_id)
 
     sections: Dict[str, str] = {}
 
-    sections["infobox"] = build_pal_infobox_wikitext(
-        base,
+    infobox_model = build_pal_infobox_model_by_id(
+        base_id,
         rows=rows,
         waza_by_pal_id=waza_by_pal_id,
         en=en,
-        include_header=False,
-    ).rstrip()
+        pal_activate_rows=pal_activate_rows,
+        partner_skill_name_rows=partner_skill_name_rows,
+    )
+    sections["infobox"] = render_pal_infobox(infobox_model, include_header=False).rstrip()
 
     if options.include_palpedia:
-        key = f"PAL_LONG_DESC_{base}"
+        key = f"PAL_LONG_DESC_{base_id}"
         raw = en.get_raw(constants.EN_PAL_LONG_DESCRIPTION_FILE, key)
-        row = en._get_table(constants.EN_PAL_LONG_DESCRIPTION_FILE).get(key)  # same cached table en uses
+        row = en._get_table(constants.EN_PAL_LONG_DESCRIPTION_FILE).get(key)  # type: ignore[attr-defined]
         desc = _clean_palpedia_description(raw, en, row)
 
         if desc:
             sections["palpedia"] = f"{{{{palpedia|{desc}}}}}"
         elif options.include_placeholders:
             sections["palpedia"] = "{{palpedia|<!--Pal Deck Summary Goes here-->}}"
-
 
     if options.include_intro_line:
         if ele1:
@@ -224,16 +232,13 @@ def build_pal_page_sections(
             )
 
     if options.include_characteristics:
-        ai_response = _get_ai_response(rows, base)
-
-        # NEW: behavior comes from AIResponse mapping (fallback to placeholder if configured)
+        ai_response = _get_ai_response(rows, base_id)
         sections["behavior"] = _build_behavior_text(
             pal_name,
             ai_response,
             include_placeholders=options.include_placeholders,
         )
 
-        # Utility remains a placeholder for now (as requested)
         sections["utility"] = (
             f"{pal_name} is able to ???. <!-- Describe how this Pal can help the player -->"
             if options.include_placeholders
@@ -241,12 +246,12 @@ def build_pal_page_sections(
         )
 
     if options.include_drops:
-        sections["drops"] = build_pal_drop_wikitext(
-            base,
-            param_rows=rows,
+        drops_model = build_pal_drops_model_by_id(
+            base_id,
             drops_by_character_id=drops_by_character_id,
             en=en,
-        ).rstrip()
+        )
+        sections["drops"] = render_pal_drops(drops_model).rstrip()
 
     if options.include_breeding:
         sections["breeding_intro"] = (
@@ -254,12 +259,12 @@ def build_pal_page_sections(
             "with outcomes determined by various breeding statistics and special parent combinations."
         )
 
-        breeding_full = build_pal_breeding_wikitext(
-            base,
+        breeding_model = build_pal_breeding_model_by_id(
+            base_id,
             rows=rows,
             en=en,
-            include_header=False,
         )
+        breeding_full = render_pal_breeding(breeding_model, include_header=False)
         sections["breeding"] = _extract_template_block(breeding_full, "Breeding")
 
     if options.include_history_section:
@@ -283,21 +288,25 @@ def build_pal_page_sections(
 
 
 def build_pal_page_wikitext(
-    base: str,
+    base_id: str,
     *,
     rows: Dict[str, dict],
     waza_by_pal_id: Dict[str, list],
-    drops_by_character_id: Dict[str, list],
+    drops_by_character_id: Dict[str, dict],
+    pal_activate_rows: dict,
+    partner_skill_name_rows: dict,
     en: EnglishText,
     options: Optional[PalPageOptions] = None,
 ) -> str:
     options = options or PalPageOptions()
 
     sections = build_pal_page_sections(
-        base,
+        base_id,
         rows=rows,
         waza_by_pal_id=waza_by_pal_id,
         drops_by_character_id=drops_by_character_id,
+        pal_activate_rows=pal_activate_rows,
+        partner_skill_name_rows=partner_skill_name_rows,
         en=en,
         options=options,
     )
@@ -325,7 +334,7 @@ def build_pal_page_wikitext(
     if intro:
         out.append(intro)
 
-    out.append("") 
+    out.append("")
 
     if options.include_characteristics:
         out.append("==Characteristics==")
@@ -346,9 +355,9 @@ def build_pal_page_wikitext(
     if options.include_breeding:
         out.append("==Breeding==")
 
-        intro = sections.get("breeding_intro", "").strip()
-        if intro:
-            out.append(intro)
+        intro_line = sections.get("breeding_intro", "").strip()
+        if intro_line:
+            out.append(intro_line)
 
         breeding = sections.get("breeding", "").strip()
         if breeding:
@@ -378,27 +387,31 @@ def build_pal_page_wikitext(
 
 
 def build_pal_page_from_files(
-    base: str,
+    base_id: str,
     *,
     options: Optional[PalPageOptions] = None,
 ) -> str:
     en = EnglishText()
 
     rows = load_rows(PARAM_INPUT_FILE, source="DT_PalMonsterParameter")
-  
+
     waza_rows = load_rows(ACTIVE_SKILL_INPUT_FILE, source="DT_WazaMasterLevel")
     waza_by_pal_id = build_waza_master_index(waza_rows)
+
+    pal_activate_rows = load_rows(_PAL_ACTIVATE_TEXT_INPUT_FILE, source="DT_PalFirstActivatedInfoText")
+    partner_skill_name_rows = load_rows(_PARTNER_SKILL_NAME_TEXT_INPUT_FILE, source="DT_SkillNameText_Common")
 
     drop_data = load_json(DROP_INPUT_FILE)
     drop_rows = extract_datatable_rows(drop_data, source="DT_PalDropItem")
     drops_by_character_id = index_drop_rows_by_character_id(drop_rows)
 
     return build_pal_page_wikitext(
-        base,
+        base_id,
         rows=rows,
         waza_by_pal_id=waza_by_pal_id,
         drops_by_character_id=drops_by_character_id,
+        pal_activate_rows=pal_activate_rows,
+        partner_skill_name_rows=partner_skill_name_rows,
         en=en,
         options=options,
     )
-

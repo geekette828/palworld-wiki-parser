@@ -383,7 +383,7 @@ class PalInfoboxModel(TypedDict, total=False):
     alpha_stats: Dict[str, str]
 
 
-def build_pal_infobox_model(
+def build_pal_infobox_model_by_id(
     base: str,
     *,
     rows: dict,
@@ -482,7 +482,7 @@ def build_all_pal_infobox_models() -> List[Tuple[str, PalInfoboxModel]]:
 
     out: List[Tuple[str, PalInfoboxModel]] = []
     for base in base_names:
-        model = build_pal_infobox_model(
+        model = build_pal_infobox_model_by_id(
             base,
             rows=rows,
             waza_by_pal_id=waza_by_pal_id,

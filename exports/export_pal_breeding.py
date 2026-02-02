@@ -26,13 +26,13 @@ def render_pal_breeding(model: PalBreedingModel, *, include_header: bool = True)
     if not model:
         return ""
 
-    base = model.get("base", "")
-    display_name = model.get("display_name", base)
+    base_id = model.get("base_id", "")
+    display_name = model.get("display_name", base_id)
 
     out: List[str] = []
 
     if include_header:
-        out.append(f"# {display_name} ({base})")
+        out.append(f"# {display_name} ({base_id})")
 
     out.append("==Breeding==")
     out.append(
@@ -52,7 +52,7 @@ def render_pal_breeding(model: PalBreedingModel, *, include_header: bool = True)
 
 
 def build_all_pal_breeding_text(*, include_headers: bool = True) -> str:
-    items = build_all_pal_breeding_models(include_headers=include_headers)
+    items = build_all_pal_breeding_models()
 
     blocks: List[str] = []
     for _, model in items:
