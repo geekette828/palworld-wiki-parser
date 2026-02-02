@@ -2,7 +2,7 @@ import os
 import sys
 import re
 import json
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, TypedDict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -354,46 +354,61 @@ def resolve_partner_skill_icon(desc: Any) -> str:
 
     return ""
 
-def build_pal_infobox_wikitext(
+
+class PalInfoboxModel(TypedDict, total=False):
+    base_id: str
+    display_name: str
+
+    no: str
+    alpha_title: str
+    ele1: str
+    ele2: str
+    pal_size: str
+
+    partner_skill_name: str
+    partner_skill_desc: str
+    partner_skill_icon: str
+
+    pal_gear: str
+    work_suitability: str
+
+    hunger: str
+    nocturnal: str
+    sell_price: str
+
+    passive_skills: str
+    active_skills: str
+
+    stats: Dict[str, str]
+    alpha_stats: Dict[str, str]
+
+
+def build_pal_infobox_model(
     base: str,
     *,
     rows: dict,
     waza_by_pal_id: dict,
     en: EnglishText,
-    include_header: bool = True,
     pal_activate_rows: dict,
     partner_skill_name_rows: dict,
-) -> str:
+) -> PalInfoboxModel:
     normal = rows.get(base)
     boss = rows.get(f"BOSS_{base}")
 
     if not isinstance(normal, dict) or not isinstance(boss, dict):
-        return ""
+        return {}
 
     pal_display_name = en.get_pal_name(base) or base
 
-    out: List[str] = []
-
-    if include_header:
-        out.append(f"# {pal_display_name} ({base})")
-
-    out.append("{{Pal")
-    out.append(f"|no = {zukan_no(normal.get('ZukanIndex'), normal.get('ZukanIndexSuffix'))}")
-
     alpha_title_key = f"BOSS_NAME_{base}"
     alpha_title = (en.get(constants.EN_NAME_PREFIX_FILE, alpha_title_key) or "").strip()
-    out.append(f"|alpha_title = {alpha_title}")
 
     ele1 = normalize_element(after_double_colon(normal.get("ElementType1")))
     ele2_raw = normalize_element(after_double_colon(normal.get("ElementType2")))
     ele2 = "" if ele2_raw.strip().lower() == "none" else ele2_raw
 
-    out.append(f"|ele1 = {ele1}")
-    out.append(f"|ele2 = {ele2}")
-
     size_raw = normal.get("Size")
     pal_size = after_double_colon(size_raw) if size_raw else ""
-    out.append(f"|pal_size = {pal_size}")
 
     partner_skill_name_key = f"PARTNERSKILL_{base}"
     partner_skill_name = _lookup_text(partner_skill_name_rows, partner_skill_name_key)
@@ -405,40 +420,55 @@ def build_pal_infobox_wikitext(
     partner_skill_desc_raw = _replace_activeskillname_tags(partner_skill_desc_raw, en)
     partner_skill_desc_raw = _replace_uicommon_tags(partner_skill_desc_raw, en)
 
-    partner_skill_desc = clean_english_text(partner_skill_desc_raw).replace("\r", "").replace("\n", " ").strip()
+    partner_skill_desc = (
+        clean_english_text(partner_skill_desc_raw).replace("\r", "").replace("\n", " ").strip()
+    )
 
-    out.append(f"|partner_skill_name = {partner_skill_name}")
-    out.append(f"|partner_skill_desc = {partner_skill_desc}")
-    out.append(f"|partner_skill_icon = {resolve_partner_skill_icon(partner_skill_desc)}")
+    partner_skill_icon = resolve_partner_skill_icon(partner_skill_desc)
 
-    out.append("|pal_gear = ")
-    out.append(f"|work_suitability = {build_work_suitability(normal)}")
-
-    out.append("<!-- Basics -->")
-    out.append(f"|hunger = {fmt(normal.get('FoodAmount'))}")
-    out.append(f"|nocturnal = {bool_to_yes_no(normal.get('Nocturnal'))}")
-    out.append(f"|sell_price = {sell_price_from_buy(normal.get('Price'))}")
-
-    out.append("<!-- Skills -->")
     passives = collect_passives(normal, en)
-    out.append(f"|passive_skills = {'; '.join(passives) if passives else ''}")
-    out.append(f"|active_skills = {build_active_skills(base, normal, waza_by_pal_id, en)}")
+    passive_skills = "; ".join(passives) if passives else ""
 
-    out.append("<!-- Stats -->")
+    active_skills = build_active_skills(base, normal, waza_by_pal_id, en)
+
+    stats: Dict[str, str] = {}
+    alpha_stats: Dict[str, str] = {}
+
     for json_key, param in STATS_MAP.items():
         normal_val = normal.get(json_key)
         boss_val = boss.get(json_key)
 
-        out.append(f"|{param} = {fmt(normal_val)}")
+        stats[param] = fmt(normal_val)
 
         if param in ALPHA_ELIGIBLE_PARAMS and normal_val != boss_val:
-            out.append(f"|alpha_{param} = {fmt(boss_val)}")
+            alpha_stats[param] = fmt(boss_val)
 
-    out.append("}}")
-    return "\n".join(out).rstrip() + "\n"
+    model: PalInfoboxModel = {
+        "base_id": base,
+        "display_name": pal_display_name,
+        "no": zukan_no(normal.get("ZukanIndex"), normal.get("ZukanIndexSuffix")),
+        "alpha_title": alpha_title,
+        "ele1": ele1,
+        "ele2": ele2,
+        "pal_size": pal_size,
+        "partner_skill_name": partner_skill_name,
+        "partner_skill_desc": partner_skill_desc,
+        "partner_skill_icon": partner_skill_icon,
+        "pal_gear": "",
+        "work_suitability": build_work_suitability(normal),
+        "hunger": fmt(normal.get("FoodAmount")),
+        "nocturnal": bool_to_yes_no(normal.get("Nocturnal")),
+        "sell_price": sell_price_from_buy(normal.get("Price")),
+        "passive_skills": passive_skills,
+        "active_skills": active_skills,
+        "stats": stats,
+        "alpha_stats": alpha_stats,
+    }
+
+    return model
 
 
-def build_all_pal_infoboxes_text(*, include_headers: bool = True) -> str:
+def build_all_pal_infobox_models() -> List[Tuple[str, PalInfoboxModel]]:
     rows = load_rows(param_input_file, source="DT_PalMonsterParameter")
     waza_rows = load_rows(active_skill_input_file, source="DT_WazaMasterLevel")
 
@@ -450,19 +480,17 @@ def build_all_pal_infoboxes_text(*, include_headers: bool = True) -> str:
 
     base_names = build_pal_order(rows)
 
-    blocks: List[str] = []
+    out: List[Tuple[str, PalInfoboxModel]] = []
     for base in base_names:
-        block = build_pal_infobox_wikitext(
+        model = build_pal_infobox_model(
             base,
             rows=rows,
             waza_by_pal_id=waza_by_pal_id,
             en=en,
-            include_header=include_headers,
             pal_activate_rows=pal_activate_rows,
             partner_skill_name_rows=partner_skill_name_rows,
         )
-        if block:
-            blocks.append(block)
-            blocks.append("\n")
+        if model:
+            out.append((model.get("display_name", base), model))
 
-    return "".join(blocks).rstrip() + "\n"
+    return out

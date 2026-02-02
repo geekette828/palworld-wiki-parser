@@ -15,9 +15,11 @@ from utils.english_text_utils import EnglishText  # type: ignore
 from builders.pal_infobox import (  # type: ignore
     load_rows as pal_infobox_load_rows,
     build_waza_master_index,
-    build_pal_infobox_wikitext,
+    build_pal_infobox_model,
     build_pal_order as build_pal_order_infobox,
 )
+from exports.export_pal_infoboxes import render_pal_infobox  # type: ignore
+
 from builders.pal_drops import (  # type: ignore
     load_json as pal_drops_load_json,
     index_drop_rows_by_character_id,
@@ -53,7 +55,7 @@ CHECK_BREEDING = True
 TEST_RUN = False
 TEST_PAGES = [
     "Blazamut", "Fuddler", "Lifmunk", "Fuack", "Foxcicle", "Frostallion", "Lovander", "Tanzee", "Vaelet",
-    "Lamball", "Chikipi", "Jolthog", "Mammorest", "Gobfin", "Dazemu", "Bushi Noct", "Azurmane", 
+    "Lamball", "Chikipi", "Jolthog", "Mammorest", "Gobfin", "Dazemu", "Bushi Noct", "Azurmane",
 ]
 
 SKIP_INFOBOX_PARAMS = [
@@ -73,6 +75,7 @@ def _write_text(path: str, text: str) -> None:
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
 
+
 def _normalize_alias_param(params: Dict[str, str], primary: str, alias: str) -> Dict[str, str]:
     primary_k = primary.strip()
     alias_k = alias.strip()
@@ -86,6 +89,7 @@ def _normalize_alias_param(params: Dict[str, str], primary: str, alias: str) -> 
         params[alias_k] = v_primary
 
     return params
+
 
 def _build_pal_name_to_id_map(en: EnglishText) -> Dict[str, str]:
     """
@@ -181,15 +185,16 @@ def _compare_and_patch_page(
         if wiki_block is None or s is None or e is None:
             warnings.append("No {{Pal}} template found on page.")
         else:
-            expected_block = build_pal_infobox_wikitext(
+            expected_model = build_pal_infobox_model(
                 pal_id,
                 rows=infobox_ctx["param_rows"],
                 waza_by_pal_id=infobox_ctx["waza_by_pal_id"],
                 en=en,
-                include_header=False,
                 pal_activate_rows=infobox_ctx["pal_activate_rows"],
                 partner_skill_name_rows=infobox_ctx["partner_skill_name_rows"],
             )
+
+            expected_block = render_pal_infobox(expected_model, include_header=False)
 
             exp_t, _, _ = extract_first_template_block(expected_block, "Pal")
             if exp_t is None:
@@ -238,7 +243,6 @@ def _compare_and_patch_page(
                 wiki_params = parse_template_params(wiki_block, allow_multiline_keys=set())
                 expected_params = parse_template_params(exp_t, allow_multiline_keys=set())
 
-                # 🔽 ADD THIS BLOCK RIGHT HERE
                 wiki_params = _normalize_alias_param(wiki_params, "palName", "target_name")
                 expected_params = _normalize_alias_param(expected_params, "palName", "target_name")
 
