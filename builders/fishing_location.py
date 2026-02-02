@@ -253,111 +253,15 @@ def _build_deduped_pond_index(
 
     return out
 
-
-def build_pal_fishing_locations_text(
-    *,
-    include_weights: bool = True,
-    include_percent: bool = True,
-) -> str:
-    en = EnglishText()
-
-    fishing_spot_rows = load_rows(
-        FISHING_SPOT_LOTTERY_PATH,
-        source="DT_PalFishingSpotLotteryDataTable",
-    )
-    fish_shadow_rows = load_rows(
-        FISH_SHADOW_PATH,
-        source="DT_PalFishShadowDataTable",
-    )
-    fish_pond_rows = load_rows(
-        FISH_POND_LOTTERY_PATH,
-        source="DT_PalFishPondLotteryDataTable",
-    )
-
-    spot_by_zone = _build_spot_zone_index(
-        fishing_spot_rows,
-        fish_shadow_rows,
-        en=en,
-    )
-    pond_by_zone = _build_pond_zone_index(
-        fish_pond_rows,
-        en=en,
-    )
-
-    zones = sorted(set(spot_by_zone) | set(pond_by_zone), key=str.lower)
-
-    out: List[str] = []
-    out.append("# Pal Fishing Locations\n")
-
-    for zone in zones:
-        out.append(f"== {zone} ==\n")
-
-        spot_groups = spot_by_zone.get(zone, {})
-        out.append("=== Fishing Spots ===\n")
-
-        if not spot_groups:
-            out.append("(none)\n")
-        else:
-            for (group, only_time), entries in sorted(
-                spot_groups.items(),
-                key=lambda kv: (kv[0][0], kv[0][1]),
-            ):
-                time_label = only_time or "Any time"
-                out.append(f"* {group} ({time_label})")
-
-                total_w = sum(e["weight"] for e in entries) or 0.0
-
-                for e in entries:
-                    bits: List[str] = []
-                    if include_weights:
-                        bits.append(f"w={e['weight']:g}")
-                    if include_percent and total_w > 0:
-                        bits.append(f"{(e['weight'] / total_w) * 100:.2f}%")
-
-                    lvl_min = e.get("lvl_min")
-                    lvl_max = e.get("lvl_max")
-                    lvl = ""
-                    if lvl_min is not None or lvl_max is not None:
-                        lvl = f" Lv {lvl_min}-{lvl_max}"
-
-                    suffix = f" [{' | '.join(bits)}]" if bits else ""
-                    out.append(f"  - {e['pal_name']} ({e['pal_id']}){lvl}{suffix}")
-
-                out.append("")
-
-        pond_groups = pond_by_zone.get(zone, {})
-        out.append("=== Fish Ponds ===\n")
-
-        if not pond_groups:
-            out.append("(none)\n")
-        else:
-            for size, entries in sorted(pond_groups.items()):
-                out.append(f"* {size}")
-
-                total_w = sum(e["weight"] for e in entries) or 0.0
-
-                for e in entries:
-                    lvl = ""
-                    if e["lvl_min"] is not None or e["lvl_max"] is not None:
-                        lvl = f" Lv {e['lvl_min']}-{e['lvl_max']}"
-
-                    bits: List[str] = []
-                    if include_weights:
-                        bits.append(f"w={e['weight']:g}")
-                    if include_percent and total_w > 0:
-                        bits.append(f"{(e['weight'] / total_w) * 100:.2f}%")
-
-                    suffix = f" [{' | '.join(bits)}]" if bits else ""
-                    out.append(f"  - {e['pal_name']} ({e['pal_id']}){lvl}{suffix}")
-
-                out.append("")
-
-        out.append("")
-
-    return "\n".join(out).rstrip() + "\n"
+class FishingLocationsModel(dict):
+    """
+    Container for fishing location data built from game datatables.
+    The builder returns structured data only. Exporters decide how to format it.
+    """
+    pass
 
 
-def build_pal_fishing_locations_deduped_text() -> str:
+def build_all_fishing_location_models() -> Dict[str, Any]:
     en = EnglishText()
 
     fishing_spot_rows = load_rows(
@@ -386,68 +290,11 @@ def build_pal_fishing_locations_deduped_text() -> str:
     spot_deduped = _build_deduped_spot_index(spot_by_zone)
     pond_deduped = _build_deduped_pond_index(pond_by_zone)
 
-    all_keys = sorted(
-        set(spot_deduped.keys()) | set(pond_deduped.keys()),
-        key=lambda k: (k[0].lower(), k[1].lower(), k[2].lower(), k[3].lower()),
-    )
+    # Wikiformat index: (zone, tier, water) -> (rarity_code, tod_code) -> list[entry]
+    wikiformat_index: Dict[Tuple[str, str, str], Dict[Tuple[str, str], List[Dict[str, Any]]]] = {}
 
-    out: List[str] = []
-    out.append("# Pal Fishing Locations (Deduped)\n")
-    out.append("Columns: Zone, Spot Tier, Water Type, Time of Day\n")
-
-    current_zone: Optional[str] = None
-    for (zone, tier, water, time_label) in all_keys:
-        if current_zone != zone:
-            current_zone = zone
-            out.append(f"== {zone} ==\n")
-
-        out.append(f"=== Tier {tier} | {water} | {time_label} ===")
-
-        pals = spot_deduped.get((zone, tier, water, time_label))
-        if pals is None:
-            pals = pond_deduped.get((zone, tier, water, time_label)) or []
-
-        if not pals:
-            out.append("(none)\n")
-            continue
-
-        for pal_name, pal_id in pals:
-            out.append(f"* {pal_name} ({pal_id})")
-
-        out.append("")
-
-    return "\n".join(out).rstrip() + "\n"
-
-
-def build_pal_fishing_locations_wikiformat_text() -> str:
-    en = EnglishText()
-
-    fishing_spot_rows = load_rows(
-        FISHING_SPOT_LOTTERY_PATH,
-        source="DT_PalFishingSpotLotteryDataTable",
-    )
-    fish_shadow_rows = load_rows(
-        FISH_SHADOW_PATH,
-        source="DT_PalFishShadowDataTable",
-    )
-
-    spot_by_zone = _build_spot_zone_index(
-        fishing_spot_rows,
-        fish_shadow_rows,
-        en=en,
-    )
-
-    blocks: List[str] = []
-    blocks.append("# Fishing Wiki Format\n")
-    blocks.append("# Key format: <rarity>_<tod>_<idx>_<field>")
-    blocks.append("# rarity: c=common, r=rare")
-    blocks.append("# tod: d=day, n=night, a=any\n")
-
-    # Index: (zone, tier, water) -> (rarity, tod) -> list[entry]
-    index: Dict[Tuple[str, str, str], Dict[Tuple[str, str], List[Dict[str, Any]]]] = {}
-
-    # Track a representative difficulty per (zone,tier,water)
-    diff_map: Dict[Tuple[str, str, str], str] = {}
+    # Representative difficulty per (zone, tier, water)
+    wikiformat_difficulty: Dict[Tuple[str, str, str], str] = {}
 
     for zone, group_map in (spot_by_zone or {}).items():
         for (lottery_name, only_time), entries in (group_map or {}).items():
@@ -460,70 +307,23 @@ def build_pal_fishing_locations_wikiformat_text() -> str:
             r_code = _rarity_code(lottery_name)
             t_code = _tod_code(only_time)
 
-            index.setdefault(key, {}).setdefault((r_code, t_code), []).extend(entries)
+            wikiformat_index.setdefault(key, {}).setdefault((r_code, t_code), []).extend(entries)
 
-            if key not in diff_map:
+            if key not in wikiformat_difficulty:
                 for e in entries:
                     d = e.get("spot_difficulty")
                     d_clean = _enum_suffix(d)
                     if d_clean != "":
-                        diff_map[key] = d_clean
+                        wikiformat_difficulty[key] = d_clean
                         break
 
-    keys_sorted = sorted(index.keys(), key=lambda k: (k[0].lower(), k[1].lower(), k[2].lower()))
+    model: Dict[str, Any] = {
+        "spot_by_zone": spot_by_zone,
+        "pond_by_zone": pond_by_zone,
+        "spot_deduped": spot_deduped,
+        "pond_deduped": pond_deduped,
+        "wikiformat_index": wikiformat_index,
+        "wikiformat_difficulty": wikiformat_difficulty,
+    }
 
-    for (zone, tier, water) in keys_sorted:
-        blocks.append(f"## {zone} | Tier {tier} | {water}")
-        blocks.append("{{Fishing Chances")
-
-        # Combined location name (per your request)
-        blocks.append(f"|location_name = {zone} {tier}")
-
-        # Keep water type, but normalize to Ocean/River/Pond
-        blocks.append(f"|water_type = {water}")
-
-        difficulty = diff_map.get((zone, tier, water), "")
-        if difficulty != "":
-            blocks.append(f"|difficulty = {difficulty}")
-
-        # stable output order:
-        rarity_order = ["c", "r"]
-        tod_order = ["d", "n", "a"]
-
-        group_map = index.get((zone, tier, water), {})
-
-        for r_code in rarity_order:
-            for t_code in tod_order:
-                rows = group_map.get((r_code, t_code), [])
-                if not rows:
-                    continue
-
-                rows_sorted = sorted(
-                    rows,
-                    key=lambda e: (
-                        (e.get("pal_name") or "").lower(),
-                        (e.get("pal_id") or "").lower(),
-                    ),
-                )
-
-                for idx, e in enumerate(rows_sorted, start=1):
-                    pal_name = (e.get("pal_name") or "").strip()
-                    weight = _safe_float(e.get("weight"))
-
-                    lvl_min = e.get("lvl_min")
-                    lvl_max = e.get("lvl_max")
-
-                    prefix = f"{r_code}_{t_code}_{idx}_"
-
-                    blocks.append(f"  |{prefix}name = {pal_name}")
-                    blocks.append(f"   |{prefix}weight = {weight:g}")
-
-                    if lvl_min is not None:
-                        blocks.append(f"   |{prefix}min = {lvl_min}")
-                    if lvl_max is not None:
-                        blocks.append(f"   |{prefix}max = {lvl_max}")
-
-        blocks.append("}}")
-        blocks.append("")
-
-    return "\n".join(blocks).rstrip() + "\n"
+    return model
