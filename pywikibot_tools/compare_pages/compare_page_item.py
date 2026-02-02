@@ -11,15 +11,16 @@ from typing import List, Optional, Tuple, Dict
 from utils.console_utils import force_utf8_stdout  # type: ignore
 from utils.english_text_utils import EnglishText  # type: ignore
 from builders.item_page import resolve_item_id_and_title  # type: ignore
+
 from builders.item_infobox import (
     build_item_infobox_model_for_page,
-    item_infobox_model_to_params,
 )  # type: ignore
+from exports.export_item_infoboxes import render_item_infobox  # type: ignore
 
 from builders.item_recipe import (
-    build_item_recipe_model_by_id,
-    crafting_recipe_model_to_params,
+    build_item_recipe_model_by_product_id,
 )  # type: ignore
+from exports.export_item_recipes import render_crafting_recipe  # type: ignore
 
 from utils.compare_utils import (
     is_blank,
@@ -46,7 +47,7 @@ CHECK_RECIPE = True
 
 TEST_RUN = False
 TEST_PAGES = [
-"Metal Armor",
+    "Metal Armor",
 ]
 
 SKIP_PARAMS = [
@@ -148,35 +149,40 @@ def _compare_and_patch_page(
         elif wiki_block is None or s is None or e is None:
             warnings.append("No {{Item}} template found on page.")
         else:
-            wiki_params = parse_template_params(wiki_block, allow_multiline_keys={"description", "qualities"})
-            expected_params = item_infobox_model_to_params(model)
+            expected_block = render_item_infobox(model, include_heading=False)
+            exp_t, _, _ = extract_first_template_block(expected_block, "Item")
+            if exp_t is None:
+                warnings.append("No canonical {{Item}} template could be generated from data.")
+            else:
+                wiki_params = parse_template_params(wiki_block, allow_multiline_keys={"description", "qualities"})
+                expected_params = parse_template_params(exp_t, allow_multiline_keys={"description", "qualities"})
 
-            skip_infobox = normalize_skip_keys(SKIP_PARAMS)
+                skip_infobox = normalize_skip_keys(SKIP_PARAMS)
 
-            if is_blank(expected_params.get("subtype")):
-                skip_infobox.add("subtype")
-                expected_params.pop("subtype", None)
+                if is_blank(expected_params.get("subtype")):
+                    skip_infobox.add("subtype")
+                    expected_params.pop("subtype", None)
 
-            param_mismatches = compare_param_dicts(
-                expected_params,
-                wiki_params,
-                skip_keys=skip_infobox,
-            )
-
-            if param_mismatches:
-                diffs.extend(param_mismatches)
-
-                patched_block, _patch_mismatches = patch_template_params_in_place(
-                    template_text=wiki_block,
-                    expected_params=expected_params,
+                param_mismatches = compare_param_dicts(
+                    expected_params,
+                    wiki_params,
                     skip_keys=skip_infobox,
-                    allow_multiline_keys={"description", "qualities"},
                 )
 
-                new_text = replace_span(new_text, s, e, patched_block)
+                if param_mismatches:
+                    diffs.extend(param_mismatches)
+
+                    patched_block, _patch_mismatches = patch_template_params_in_place(
+                        template_text=wiki_block,
+                        expected_params=expected_params,
+                        skip_keys=skip_infobox,
+                        allow_multiline_keys={"description", "qualities"},
+                    )
+
+                    new_text = replace_span(new_text, s, e, patched_block)
 
     if CHECK_RECIPE:
-        recipe_model = build_item_recipe_model_by_id(item_id)
+        recipe_model = build_item_recipe_model_by_product_id(item_id)
 
         if not recipe_model:
             blocks = find_template_blocks(new_text, "Crafting Recipe")
@@ -210,40 +216,45 @@ def _compare_and_patch_page(
             else:
                 wiki_recipe, rs, re_ = selected
 
-                wiki_params = _extract_recipe_params(wiki_recipe)
-                expected_params = crafting_recipe_model_to_params(recipe_model)
+                expected_block = render_crafting_recipe(recipe_model)
+                exp_t, _, _ = extract_first_template_block(expected_block, "Crafting Recipe")
+                if exp_t is None:
+                    warnings.append("No canonical {{Crafting Recipe}} template could be generated from data.")
+                else:
+                    wiki_params = _extract_recipe_params(wiki_recipe)
+                    expected_params = _extract_recipe_params(exp_t)
 
-                skip_recipe_prefixed = normalize_skip_keys(SKIP_RECIPE_PARAMS)
+                    skip_recipe_prefixed = normalize_skip_keys(SKIP_RECIPE_PARAMS)
 
-                param_mismatches = compare_param_dicts(
-                    expected_params,
-                    wiki_params,
-                    prefix="recipe.",
-                    skip_keys=skip_recipe_prefixed,
-                    qty_assume_one_suffixes={"ingredients"},
-                )
-
-                if param_mismatches:
-                    diffs.extend(param_mismatches)
-
-                    skip_bare: set[str] = set()
-                    for k in (SKIP_RECIPE_PARAMS or []):
-                        s_k = str(k or "").strip()
-                        if not s_k:
-                            continue
-                        if s_k.lower().startswith("recipe."):
-                            s_k = s_k.split(".", 1)[1].strip()
-                        skip_bare.add(s_k.casefold())
-
-                    patched_recipe, _patch_mismatches = patch_template_params_in_place(
-                        template_text=wiki_recipe,
-                        expected_params=expected_params,
-                        skip_keys=skip_bare,
-                        allow_multiline_keys=set(),
-                        add_missing_params=True,   # ✅ this is the key
+                    param_mismatches = compare_param_dicts(
+                        expected_params,
+                        wiki_params,
+                        prefix="recipe.",
+                        skip_keys=skip_recipe_prefixed,
+                        qty_assume_one_suffixes={"ingredients"},
                     )
 
-                    new_text = replace_span(new_text, rs, re_, patched_recipe)
+                    if param_mismatches:
+                        diffs.extend(param_mismatches)
+
+                        skip_bare: set[str] = set()
+                        for k in (SKIP_RECIPE_PARAMS or []):
+                            s_k = str(k or "").strip()
+                            if not s_k:
+                                continue
+                            if s_k.lower().startswith("recipe."):
+                                s_k = s_k.split(".", 1)[1].strip()
+                            skip_bare.add(s_k.casefold())
+
+                        patched_recipe, _patch_mismatches = patch_template_params_in_place(
+                            template_text=wiki_recipe,
+                            expected_params=expected_params,
+                            skip_keys=skip_bare,
+                            allow_multiline_keys=set(),
+                            add_missing_params=True,
+                        )
+
+                        new_text = replace_span(new_text, rs, re_, patched_recipe)
 
     return new_text, diffs, warnings
 

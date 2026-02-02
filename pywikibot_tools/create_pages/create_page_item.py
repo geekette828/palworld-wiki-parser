@@ -6,8 +6,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from config import constants
 from typing import List
-from pathlib import Path
-
 from utils.console_utils import force_utf8_stdout
 from builders.item_page import build_item_page_from_name_or_id, ItemPageOptions
 
@@ -16,12 +14,11 @@ force_utf8_stdout()
 preview_output_directory = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "Item Pages")
 missing_pages_file = os.path.join(constants.OUTPUT_DIRECTORY, "Pywikibot", "Missing_Items.txt")
 
-DRY_RUN = False
+DRY_RUN = True
 OVERWRITE_EXISTING = True
 
-# Only used when DRY_RUN = True
 TEST_PAGES = [
-    "Applied Cooling Technique Ⅰ", "Awakening Starfruit ☆1", "Implant: Brave", "Little Kinship Peach"
+    "Core Eject Shotgun", "Cold Resistant Plasteel Armor", "Dazzi Hat"
 ]
 
 
@@ -137,7 +134,7 @@ def main() -> None:
             missing_item_ids_or_names.append(user_title)
             continue
 
-        if not page_text.strip():
+        if not page_text or not page_text.strip():
             missing_page_text.append(user_title)
             continue
 
@@ -156,15 +153,9 @@ def main() -> None:
         print(f"🛠️ Missing name->id mappings written to: {missing_path}")
 
     if missing_page_text:
-        missing_path = os.path.join(preview_output_directory, "missing_item_page_entries.txt")
+        missing_path = os.path.join(preview_output_directory, "missing_page_text.txt")
         write_text(missing_path, "\n".join(missing_page_text) + "\n")
-        print(f"🛠️ Missing item page builder entries written to: {missing_path}")
-
-    if DRY_RUN:
-        dir_uri = Path(preview_output_directory).as_uri()
-        print(f"✅ DRY_RUN complete. Preview files written to: {dir_uri}")
-    else:
-        print("✅ Done.")
+        print(f"🛠️ Items with missing page text written to: {missing_path}")
 
 
 if __name__ == "__main__":

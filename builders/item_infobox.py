@@ -10,6 +10,9 @@ from config import constants
 from functools import lru_cache
 from utils.english_text_utils import EnglishText, clean_english_text
 from utils.json_datatable_utils import extract_datatable_rows
+from utils.console_utils import force_utf8_stdout
+force_utf8_stdout()
+
 #Paths
 item_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemDataTable.json")
 en_name_file = constants.EN_ITEM_NAME_FILE
@@ -337,6 +340,38 @@ class ItemInfoboxModel(TypedDict, total=False):
     shield: str
     equip_effect: str
 
+def item_infobox_model_to_params(model: ItemInfoboxModel) -> Dict[str, str]:
+    """
+    Mapping helper for comparer:
+    Converts model -> flat dict matching {{Item}} template param names.
+    """
+    if not model:
+        return {}
+
+    keys = [
+        # core
+        "description", "type", "subtype", "rarity", "sell", "weight", "technology",
+
+        # equipment
+        "qualities", "durability", "health", "defense", "attack", "magazine", "shield", "equip_effect",
+
+        # consumable
+        "nutrition", "san", "corruption", "consumeEffect",
+    ]
+
+    out: Dict[str, str] = {}
+    for k in keys:
+        out[k] = _trim(model.get(k, ""))
+
+    # If the page uses the combined variant format (qualities),
+    # the single-stat equipment params should not be compared/expected.
+    if _trim(out.get("qualities")):
+        for k in ("durability", "health", "defense", "attack", "magazine", "shield", "equip_effect"):
+            out[k] = ""
+
+    return out
+
+
 def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -651,7 +686,8 @@ def _build_english_name_to_item_id_map(english: EnglishText) -> Dict[str, str]:
     return mapping
 
 
-def resolve_item_id_from_name(english_item_name: str, english: Optional[EnglishText] = None) -> str:
+
+def resolve_item_id_from_english_name(english_item_name: str, english: Optional[EnglishText] = None) -> str:
     global _CACHED_ENGLISH_NAME_TO_ITEM_ID
     english = english or EnglishText()
 
@@ -661,6 +697,11 @@ def resolve_item_id_from_name(english_item_name: str, english: Optional[EnglishT
     key = _normalize_english_key(english_item_name)
     return _CACHED_ENGLISH_NAME_TO_ITEM_ID.get(key, "")
 
+
+
+def resolve_item_id_from_name(name: str) -> str:
+    # Backwards-compatible alias for older scripts.
+    return resolve_item_id_from_english_name(name)
 
 def _get_item_description(english: EnglishText, item_id: str, row: Optional[Dict[str, Any]]) -> str:
     for candidate_id in _alt_item_name_ids(item_id):
@@ -677,7 +718,7 @@ def _get_item_description(english: EnglishText, item_id: str, row: Optional[Dict
 
     return ""
 
-def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
+def build_item_infobox_model_for_page(item_id: str) -> ItemInfoboxModel:
     """
     Page-builder entry-point:
     - For Armor/Weapon variants that share ItemActorClass + TypeA + TypeB, return a single combined model
@@ -713,39 +754,58 @@ def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
     if type_a not in {"Armor", "Weapon"}:
         return build_item_infobox_model_by_id(item_id)
 
-    # If there is no meaningful actor class, treat as single-item
-    if not actor or actor.lower() == "none":
-        return build_item_infobox_model_by_id(item_id)
-
-    # Collect all item ids in the same variant group (actor + type_a + type_b)
+    # Collect all item ids in the same variant group.
+    # Preferred key: ItemActorClass + TypeA + TypeB.
+    # Fallback: shared English display name + TypeA + TypeB (some base rows omit ItemActorClass).
     group_ids: List[str] = []
-    for iid, r in item_rows.items():
-        if not isinstance(r, dict):
-            continue
-        if r.get("bLegalInGame") is False:
-            continue
 
-        r_actor = _trim(r.get("ItemActorClass"))
-        if not r_actor or r_actor.lower() == "none":
-            continue
-
-        if r_actor != actor:
-            continue
-
-        r_type_a = _normalize_item_type(_leaf_enum(r.get("TypeA")))
-        r_name = ""
+    def _display_name_for_id(iid: str) -> str:
+        name = ""
         for candidate_id in _alt_item_name_ids(iid):
-            r_name = english.get_item_name(candidate_id)
-            if r_name:
+            name = english.get_item_name(candidate_id)
+            if name:
                 break
-        if not r_name:
-            r_name = iid
+        return name or iid
 
-        r_type_a = _normalize_item_type_by_id(iid, r_type_a, r_name)
-        r_type_b = _leaf_enum(r.get("TypeB"))
+    if actor and actor.lower() != "none":
+        for iid, r in item_rows.items():
+            if not isinstance(r, dict):
+                continue
+            if r.get("bLegalInGame") is False:
+                continue
 
-        if r_type_a == type_a and r_type_b == type_b:
-            group_ids.append(iid)
+            r_actor = _trim(r.get("ItemActorClass"))
+            if not r_actor or r_actor.lower() == "none":
+                continue
+            if r_actor != actor:
+                continue
+
+            r_type_a = _normalize_item_type(_leaf_enum(r.get("TypeA")))
+            r_name = _display_name_for_id(iid)
+            r_type_a = _normalize_item_type_by_id(iid, r_type_a, r_name)
+            r_type_b = _leaf_enum(r.get("TypeB"))
+
+            if r_type_a == type_a and r_type_b == type_b:
+                group_ids.append(iid)
+    else:
+        base_name_key = _normalize_english_key(display_name)
+        if base_name_key:
+            for iid, r in item_rows.items():
+                if not isinstance(r, dict):
+                    continue
+                if r.get("bLegalInGame") is False:
+                    continue
+
+                r_type_a = _normalize_item_type(_leaf_enum(r.get("TypeA")))
+                r_name = _display_name_for_id(iid)
+                r_type_a = _normalize_item_type_by_id(iid, r_type_a, r_name)
+                r_type_b = _leaf_enum(r.get("TypeB"))
+
+                if r_type_a != type_a or r_type_b != type_b:
+                    continue
+
+                if _normalize_english_key(r_name) == base_name_key:
+                    group_ids.append(iid)
 
     # If only one item in the group, don’t use qualities format
     if len(group_ids) <= 1:
@@ -806,6 +866,14 @@ def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
         # When using qualities, top-level rarity/sell should not appear
         base_model["rarity"] = ""
         base_model["sell"] = ""
+
+        base_model["durability"] = ""
+        base_model["health"] = ""
+        base_model["defense"] = ""
+        base_model["shield"] = ""
+        base_model["equip_effect"] = ""
+        base_model["attack"] = ""
+        base_model["magazine"] = ""
 
     return base_model
 
@@ -897,16 +965,31 @@ def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
     return model
 
 
-def build_item_infobox_model_from_name(english_item_name: str) -> ItemInfoboxModel:
+def build_item_infobox_model(english_item_name: str) -> ItemInfoboxModel:
     """
     Builder entry-point:
     Given an English item name, return canonical infobox fields (model).
     """
     english = EnglishText()
-    item_id = resolve_item_id_from_name(english_item_name, english=english)
+    item_id = resolve_item_id_from_english_name(english_item_name, english=english)
     if not item_id:
         return {}
     return build_item_infobox_model_by_id(item_id)
+
+
+def render_item_infobox(model: ItemInfoboxModel, *, include_heading: bool = True) -> str:
+    from exports.export_item_infoboxes import render_item_infobox as _render_item_infobox
+    return _render_item_infobox(model, include_heading=include_heading)
+
+
+def build_item_infobox(english_item_name: str) -> str:
+    """
+    Convenience wrapper:
+    pass an English item name, get rendered infobox block back.
+    """
+    model = build_item_infobox_model(english_item_name)
+    return render_item_infobox(model, include_heading=True)
+
 
 
 def build_all_item_infobox_models() -> List[Tuple[str, str, ItemInfoboxModel]]:
@@ -1029,5 +1112,3 @@ def build_all_item_infobox_models() -> List[Tuple[str, str, ItemInfoboxModel]]:
 
     out.sort(key=lambda x: x[0].casefold())
     return out
-
-
