@@ -19,6 +19,7 @@ Palworld Parser/
 │   ├── item_infobox.py
 │   ├── item_page_summary.py
 │   ├── item_page.py
+│   ├── merchant_shop.py
 │   ├── pal_infobox.py
 │   ├── pal_breeding.py
 │   ├── pal_drops.py
@@ -32,6 +33,7 @@ Palworld Parser/
 │   ├── export_fishing_locations.py
 │   ├── export_item_infoboxes.py            → Outputs all item infoboxes
 │   ├── export_item_recipes.py              → Outputs all item crafting recipes
+│   ├── export_merchant_shops.py
 │   ├── export_pal_infoboxes.py             → Outputs all Pal infoboxes
 │   ├── export_pal_breeding.py              → Outputs all Pal breeding data
 │   ├── export_pal_drops.py                 → Outputs all Pal drop data
@@ -82,12 +84,12 @@ DataTable/
 ├── Arena/
 ├── BaseCamp/
 ├── Character/
-│   ├── DT_PalDropItem.json                 → Raw Drop Data
-│   └── DT_PalMonsterParameter.json         → Raw Pal Data
+│   ├── DT_PalDropItem.json                 → Raw pal drop definitions
+│   └── DT_PalMonsterParameter.json         → Raw pal stats and parameters
 ├── CharacterCreation/
 ├── CharacterTeamMission/
 ├── Common/
-│   └── DT_FieldLotteryNameDataTable.json   → Raw data around chance for lottery slots to roll.
+│   └── DT_FieldLotteryNameDataTable.json   → Defines slot roll probabilities for field-based lotteries
 ├── Debug/
 ├── Dungeon/
 ├── Environment/
@@ -98,9 +100,12 @@ DataTable/
 ├── Incident/
 ├── Invader/
 ├── Item/
-│   ├── DT_ItemDataTable.json               → Raw Item Data
-│   └── DT_ItemRecipeDataTable              → Raw Item Recipe Data
+│   ├── DT_ItemDataTable.json               → Raw item definitions
+│   └── DT_ItemRecipeDataTable.json         → Raw item recipe definitions
 ├── ItemShop/
+│   ├── DT_ItemShopLotteryData.json         → Determines which shop group a vendor selects when inventory refreshes
+│   ├── DT_ItemShopCreateData.json          → Defines items, quantities, prices, and rules for each shop group
+│   └── DT_ItemShopSettingData_Common.json  → Defines currency for each shop group
 ├── Lab/
 ├── MapObject/
 ├── NPCtalk/
@@ -109,7 +114,7 @@ DataTable/
 ├── PalShop/
 ├── PartnerSkill/
 ├── PassiveSkill/
-│   └── DT_PassiveSkill_Main.json           → Raw Passive Skill Data
+│   └── DT_PassiveSkill_Main.json           → Raw passive skill definitions
 ├── PickingGame/
 ├── Player/
 ├── Quest/
@@ -122,8 +127,8 @@ DataTable/
 ├── Tutorial/
 ├── UI/
 ├── Waza/
-│   ├── DT_WazaDataTable.json               → Raw Active Skill Data
-│   └── DT_WazaMasterLevel.json             → Raw Pal Active Skill Learnset Data
+│   ├── DT_WazaDataTable.json               → Raw active skill definitions
+│   └── DT_WazaMasterLevel.json             → Defines how pals learn active skills by level
 ├── WorldMapAreaData/
 ├── WorldMapUIData/
 └── WorldSecurity/
