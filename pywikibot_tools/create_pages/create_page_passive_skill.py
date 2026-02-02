@@ -7,7 +7,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from config import constants
 from typing import Dict, List
 from pathlib import Path
-from builders.passive_skill_infobox import build_infobox_map
+from builders.passive_skill_infobox import build_all_passive_skill_models, PassiveSkillModel
+from export_passive_skill_infoboxes import render_passive_skill_infobox
 from utils.console_utils import force_utf8_stdout
 force_utf8_stdout()
 
@@ -63,18 +64,18 @@ def read_pages_list_file(path: str) -> List[str]:
 
     return deduped
 
-def extract_first_effect_from_infobox(infobox_wikitext: str) -> str | None:
-    for line in infobox_wikitext.splitlines():
-        line = line.strip()
-        if line.startswith("|effects"):
-            _, value = line.split("=", 1)
-            value = value.strip()
-            if not value:
-                return None
-            return value.split(";", 1)[0].strip()
-    return None
+def first_effect_string(model: PassiveSkillModel) -> str | None:
+    effects = model.get("effects", []) or []
+    if not effects:
+        return None
+    e = effects[0]
+    label = (e.get("label") or "").strip()
+    val = (e.get("value_text") or "").strip()
+    if not label or not val:
+        return None
+    return f"{label}*{val}"
 
-def build_passive_skill_summary_from_effect(effect: str) -> str:
+def build_passive_skill_summary_from_effect(effect: str | None) -> str:
     """
     effect format: '<EffectName>*<number>%'
     Example: 'Defense*-20%'
@@ -177,14 +178,16 @@ def build_passive_skill_summary_from_effect(effect: str) -> str:
 
     return "is a passive skill with unique effects that influence a Pal's performance."
 
-def build_page_text(skill_name: str, infobox_wikitext: str) -> str:
+def build_page_text(skill_name: str, model: PassiveSkillModel) -> str:
     skill_name = normalize_title(skill_name)
+
+    infobox_wikitext = render_passive_skill_infobox(model)
 
     page_lines = []
     page_lines.append(infobox_wikitext.strip())
     page_lines.append("")
 
-    effect = extract_first_effect_from_infobox(infobox_wikitext)
+    effect = first_effect_string(model)
     summary_text = build_passive_skill_summary_from_effect(effect)
 
     page_lines.append(f"'''{skill_name}''' {summary_text}")
@@ -308,23 +311,24 @@ def main() -> None:
             print(f"Or populate this file with one page title per line: {missing_pages_file}")
             return
 
-    infobox_map = build_infobox_map()
+    models = build_all_passive_skill_models()
+    model_map: Dict[str, PassiveSkillModel] = {normalize_title(m.get("display_name", "")): m for m in models if m.get("display_name")}
 
-    missing = [p for p in pages_to_process if p not in infobox_map]
+    missing = [p for p in pages_to_process if p not in model_map]
     if missing:
-        missing_path = os.path.join(preview_output_directory, "missing_infobox_entries.txt")
+        missing_path = os.path.join(preview_output_directory, "missing_model_entries.txt")
         write_text(missing_path, "\n".join(missing) + "\n")
-        print(f"🛠️ Missing infobox entries written to: {missing_path}")
+        print(f"🛠️ Missing models written to: {missing_path}")
 
     site = pywikibot.Site() if not DRY_RUN else None
 
     for skill_name in pages_to_process:
-        infobox = infobox_map.get(skill_name)
-        if not infobox:
-            print(f"🛠️ No infobox found for: {skill_name}")
+        model = model_map.get(skill_name)
+        if not model:
+            print(f"🛠️ No model found for: {skill_name}")
             continue
 
-        page_text = build_page_text(skill_name, infobox)
+        page_text = build_page_text(skill_name, model)
 
         if DRY_RUN:
             write_dry_run_page(skill_name, page_text)
