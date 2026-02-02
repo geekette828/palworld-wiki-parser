@@ -10,9 +10,6 @@ from config import constants
 from functools import lru_cache
 from utils.english_text_utils import EnglishText, clean_english_text
 from utils.json_datatable_utils import extract_datatable_rows
-from utils.console_utils import force_utf8_stdout
-force_utf8_stdout()
-
 #Paths
 item_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemDataTable.json")
 en_name_file = constants.EN_ITEM_NAME_FILE
@@ -340,38 +337,6 @@ class ItemInfoboxModel(TypedDict, total=False):
     shield: str
     equip_effect: str
 
-def item_infobox_model_to_params(model: ItemInfoboxModel) -> Dict[str, str]:
-    """
-    Mapping helper for comparer:
-    Converts model -> flat dict matching {{Item}} template param names.
-    """
-    if not model:
-        return {}
-
-    keys = [
-        # core
-        "description", "type", "subtype", "rarity", "sell", "weight", "technology",
-
-        # equipment
-        "qualities", "durability", "health", "defense", "attack", "magazine", "shield", "equip_effect",
-
-        # consumable
-        "nutrition", "san", "corruption", "consumeEffect",
-    ]
-
-    out: Dict[str, str] = {}
-    for k in keys:
-        out[k] = _trim(model.get(k, ""))
-
-    # If the page uses the combined variant format (qualities),
-    # the single-stat equipment params should not be compared/expected.
-    if _trim(out.get("qualities")):
-        for k in ("durability", "health", "defense", "attack", "magazine", "shield", "equip_effect"):
-            out[k] = ""
-
-    return out
-
-
 def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -686,8 +651,7 @@ def _build_english_name_to_item_id_map(english: EnglishText) -> Dict[str, str]:
     return mapping
 
 
-
-def resolve_item_id_from_english_name(english_item_name: str, english: Optional[EnglishText] = None) -> str:
+def resolve_item_id_from_name(english_item_name: str, english: Optional[EnglishText] = None) -> str:
     global _CACHED_ENGLISH_NAME_TO_ITEM_ID
     english = english or EnglishText()
 
@@ -713,17 +677,7 @@ def _get_item_description(english: EnglishText, item_id: str, row: Optional[Dict
 
     return ""
 
-def build_item_infobox_wikitext_by_id(item_id: str, *, include_heading: bool = False) -> str:
-    """
-    Renderer wrapper:
-    Pass an internal item_id and get rendered infobox wikitext back.
-    """
-    model = build_item_infobox_model_by_id(item_id)
-    if not model:
-        return ""
-    return render_item_infobox(model, include_heading=include_heading)
-
-def build_item_infobox_model_for_page(item_id: str) -> ItemInfoboxModel:
+def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
     """
     Page-builder entry-point:
     - For Armor/Weapon variants that share ItemActorClass + TypeA + TypeB, return a single combined model
@@ -943,111 +897,29 @@ def build_item_infobox_model_by_id(item_id: str) -> ItemInfoboxModel:
     return model
 
 
-def build_item_infobox_model(english_item_name: str) -> ItemInfoboxModel:
+def build_item_infobox_model_from_name(english_item_name: str) -> ItemInfoboxModel:
     """
     Builder entry-point:
     Given an English item name, return canonical infobox fields (model).
     """
     english = EnglishText()
-    item_id = resolve_item_id_from_english_name(english_item_name, english=english)
+    item_id = resolve_item_id_from_name(english_item_name, english=english)
     if not item_id:
         return {}
     return build_item_infobox_model_by_id(item_id)
 
 
-def render_item_infobox(model: ItemInfoboxModel, *, include_heading: bool = True) -> str:
+def build_all_item_infobox_models() -> List[Tuple[str, str, ItemInfoboxModel]]:
     """
-    Render entry-point:
-    Convert an infobox model into canonical wikitext.
+    Returns a list of (display_name, item_id, model) entries in stable output order.
+    This is the canonical model-only builder used by exporters and compare scripts.
+
+    - Non-Armor/Weapon items are emitted individually
+    - Armor/Weapon variants are merged into a single model using the Common (rarity 0) row when present
     """
-    if not model:
-        return ""
-
-    display_name = (model.get("display_name") or "").strip()
-
-    lines: List[str] = []
-
-    if include_heading:
-        lines.append(f"## {display_name}")
-
-    lines.extend([
-        "{{Item",
-        f"|description = {model.get('description', '')}",
-        f"|type = {model.get('type', '')}",
-        f"|subtype = {model.get('subtype', '')}",
-    ])
-
-    # Only include rarity/sell in the top section when not using qualities
-    if not _trim(model.get("qualities")):
-        lines.append(f"|rarity = {model.get('rarity', '')}")
-        lines.append(f"|sell = {model.get('sell', '')}")
-
-    lines.extend([
-        f"|weight = {model.get('weight', '')}",
-        f"|technology = {model.get('technology', '')}",
-    ])
-
-    # Equipment section
-    if _trim(model.get("qualities")) or _trim(model.get("durability")) or _trim(model.get("attack")) or _trim(model.get("magazine")) or _trim(model.get("health")) or _trim(model.get("defense")) or _trim(model.get("shield")) or _trim(model.get("equip_effect")):
-        lines.append("<!-- Equipment Data -->")
-
-        qualities = _trim(model.get("qualities"))
-        if qualities:
-            lines.append("|qualities =")
-            lines.append(f"  {qualities}")
-        else:
-            if _trim(model.get("durability")):
-                lines.append(f"|durability = {model.get('durability', '')}")
-            if _trim(model.get("attack")):
-                lines.append(f"|attack = {model.get('attack', '')}")
-            if _trim(model.get("magazine")):
-                lines.append(f"|magazine = {model.get('magazine', '')}")
-            if _trim(model.get("health")):
-                lines.append(f"|health = {model.get('health', '')}")
-            if _trim(model.get("defense")):
-                lines.append(f"|defense = {model.get('defense', '')}")
-            if _trim(model.get("shield")):
-                lines.append(f"|shield = {model.get('shield', '')}")
-            if _trim(model.get("equip_effect")):
-                lines.append(f"|equip_effect = {model.get('equip_effect', '')}")
-
-    # Consumable section
-    if _trim(model.get("nutrition")) or _trim(model.get("san")) or _trim(model.get("corruption")) or _trim(model.get("consumeEffect")):
-        lines.append("<!-- Consumable Data -->")
-        if _trim(model.get("nutrition")):
-            lines.append(f"|nutrition = {model.get('nutrition', '')}")
-        if _trim(model.get("san")):
-            lines.append(f"|san = {model.get('san', '')}")
-        if _trim(model.get("corruption")):
-            lines.append(f"|corruption = {model.get('corruption', '')}")
-        if _trim(model.get("consumeEffect")):
-            lines.append(f"|consumeEffect = {model.get('consumeEffect', '')}")
-
-    lines.extend([
-        "}}",
-        "",
-        "",
-    ])
-
-    return "\n".join(lines)
-
-
-def build_item_infobox(english_item_name: str) -> str:
-    """
-    Convenience wrapper:
-    pass an English item name, get rendered infobox block back.
-    """
-    model = build_item_infobox_model(english_item_name)
-    return render_item_infobox(model, include_heading=True)
-
-
-def build_all_item_infobox_blocks() -> List[Tuple[str, str]]:
     english = EnglishText()
     item_rows = _load_item_rows()
 
-    # Build groups (generic variant grouping)
-    # Group key: (ItemActorClass, TypeA leaf, TypeB leaf) when ItemActorClass is meaningful.
-    # Otherwise, each item is its own group.
     groups: Dict[Tuple[str, str, str], List[str]] = {}
     for item_id, row in item_rows.items():
         if not isinstance(row, dict):
@@ -1066,10 +938,9 @@ def build_all_item_infobox_blocks() -> List[Tuple[str, str]]:
 
         groups.setdefault(key, []).append(item_id)
 
-    blocks: List[Tuple[str, str]] = []
+    out: List[Tuple[str, str, ItemInfoboxModel]] = []
 
     for (actor, type_a, type_b), ids in groups.items():
-        # Non-armor: emit each item individually (same as today)
         if type_a not in {"Armor", "Weapon"}:
             for item_id in ids:
                 model = build_item_infobox_model_by_id(item_id)
@@ -1080,13 +951,9 @@ def build_all_item_infobox_blocks() -> List[Tuple[str, str]]:
                 if not display_name:
                     continue
 
-                block = render_item_infobox(model, include_heading=False)
-                if block:
-                    header = f"## {display_name} ({item_id})\n"
-                    blocks.append((display_name, header + block))
+                out.append((display_name, item_id, model))
             continue
 
-        # Armor: if only one entry in the group, same behavior as today
         if len(ids) == 1:
             item_id = ids[0]
             model = build_item_infobox_model_by_id(item_id)
@@ -1097,14 +964,9 @@ def build_all_item_infobox_blocks() -> List[Tuple[str, str]]:
             if not display_name:
                 continue
 
-            block = render_item_infobox(model, include_heading=False)
-            if block:
-                header = f"## {display_name} ({item_id})\n"
-                blocks.append((display_name, header + block))
+            out.append((display_name, item_id, model))
             continue
 
-        # Variants: Armor and Weapon get combined into one infobox using the COMMON (rarity 0) item
-        # Pick the base/common row if present, else the lowest rarity.
         def rarity_num(i: str) -> int:
             r = item_rows.get(i, {}).get("Rarity")
             try:
@@ -1127,14 +989,11 @@ def build_all_item_infobox_blocks() -> List[Tuple[str, str]]:
         if not display_name:
             continue
 
-        # subtype: hat vs head armor depends on whether variants exist
         if type_a == "Armor":
             base_model["subtype"] = _armor_subtype(type_b, has_variants=True)
         elif type_a == "Weapon":
             base_model["subtype"] = _weapon_subtype(type_b, display_name)
 
-
-        # Build qualities in Common -> Legendary order when present
         quality_lines: List[str] = []
         for item_id in ids_sorted:
             row = item_rows.get(item_id)
@@ -1153,14 +1012,11 @@ def build_all_item_infobox_blocks() -> List[Tuple[str, str]]:
             if line:
                 quality_lines.append(line)
 
-
         base_model["qualities"] = ";\n  ".join(quality_lines)
 
-        # Ensure top rarity/sell are not used for variants
         base_model["rarity"] = ""
         base_model["sell"] = ""
 
-        # Clear single-item equipment fields for merged variants
         base_model["durability"] = ""
         base_model["health"] = ""
         base_model["defense"] = ""
@@ -1169,19 +1025,9 @@ def build_all_item_infobox_blocks() -> List[Tuple[str, str]]:
         base_model["attack"] = ""
         base_model["magazine"] = ""
 
+        out.append((display_name, base_id, base_model))
 
-        block = render_item_infobox(base_model, include_heading=False)
-        if block:
-            header = f"## {display_name} ({base_id})\n"
-            blocks.append((display_name, header + block))
-
-    blocks.sort(key=lambda x: x[0].casefold())
-    return blocks
+    out.sort(key=lambda x: x[0].casefold())
+    return out
 
 
-def build_all_item_infoboxes_text() -> str:
-    """
-    Returns the full mass-list text (concatenated blocks). No file IO.
-    """
-    blocks = build_all_item_infobox_blocks()
-    return "".join(block for _, block in blocks)

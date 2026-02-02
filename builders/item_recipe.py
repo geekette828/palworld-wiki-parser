@@ -53,6 +53,12 @@ class CraftingRecipeModel(TypedDict, total=False):
     variants: Dict[int, CraftingRecipeVariant]  # {2: {"workload": "...", "ingredients": "..."}, ...}
 
 
+class CraftingRecipeEntry(TypedDict, total=False):
+    product_id: str
+    display_name: str
+    model: CraftingRecipeModel
+
+
 def _normalize_schematic_name(name: str) -> str:
     name = (name or "").strip()
     return _SCHEMATIC_SUFFIX_RE.sub("", name)
@@ -315,7 +321,7 @@ def _build_model_for_base_and_variants(
     return model
 
 
-def build_item_recipe_model_by_id(
+def build_item_recipe_model_by_product_id(
     product_id: str,
     *,
     recipe_path: str = recipe_input_file,
@@ -381,173 +387,41 @@ def build_item_recipe_model_by_id(
     )
 
 
-def crafting_recipe_model_to_params(model: CraftingRecipeModel) -> Dict[str, str]:
-    """
-    Mapping helper for comparer:
-    Converts model -> flat dict matching template param names.
-    """
-    if not model:
-        return {}
-
-    params: Dict[str, str] = {
-        "product": _trim(model.get("product")),
-        "yield": _trim(model.get("yield_count")),
-        "workbench": _trim(model.get("workbench")),
-        "ingredients": _trim(model.get("ingredients")),
-        "workload": _trim(model.get("workload")),
-    }
-
-    variants = model.get("variants") or {}
-    if variants:
-        params["schematic"] = _trim(model.get("schematic"))
-
-        for n in (2, 3, 4, 5):
-            v = variants.get(n)
-            if not v:
-                continue
-            params[f"{n}_workload"] = _trim(v.get("workload"))
-            params[f"{n}_ingredients"] = _trim(v.get("ingredients"))
-    else:
-        params["schematic"] = _trim(model.get("schematic"))
-
-    return params
-
-
-def render_crafting_recipe(model: CraftingRecipeModel) -> str:
-    if not model:
-        return ""
-
-    lines: List[str] = []
-    lines.append("{{Crafting Recipe")
-    lines.append(f"|product = {model.get('product', '')}")
-    lines.append(f"|yield = {model.get('yield_count', '')}")
-    lines.append(f"|workbench = {model.get('workbench', '')}")
-    lines.append(f"|ingredients = {model.get('ingredients', '')}")
-    lines.append(f"|workload = {model.get('workload', '')}")
-
-    variants = model.get("variants") or {}
-    if variants:
-        lines.append(f"|schematic = {model.get('schematic', '')}")
-
-        lines.append("")
-
-        first = True
-        for n in (2, 3, 4, 5):
-            v = variants.get(n)
-            if not v:
-                continue
-
-            if not first:
-                lines.append("")
-            first = False
-
-            lines.append(f"|{n}_workload = {v.get('workload', '')}")
-            lines.append(f"|{n}_ingredients = {v.get('ingredients', '')}")
-
-    lines.append("}}")
-    return "\n".join(lines).rstrip() + "\n"
-
-
-def build_item_recipe_wikitext(product_id: str, *, input_path: str = recipe_input_file) -> str:
-    """
-    Renderer wrapper:
-    Pass a Product_Id (internal) and get a Crafting Recipe template wikitext.
-    """
-    model = build_item_recipe_model_by_id(
-        product_id,
-        recipe_path=input_path,
-        item_path=item_input_file,
-    )
-    if not model:
-        return ""
-    return render_crafting_recipe(model)
-
-
-def build_all_item_recipes_text(*, input_path: str = recipe_input_file) -> str:
-    """
-    Returns a single wikitext blob containing all Crafting Recipe templates.
-    Import-safe: no file writes.
-    """
-    blocks = build_all_item_recipe_blocks(input_path=input_path)
-
-    parts: List[str] = []
-    for _, wikitext in blocks:
-        parts.append(wikitext.rstrip())
-
-    return ("\n\n".join(parts).rstrip() + "\n") if parts else ""
-
-
-def build_all_item_recipes_export_text(*, input_path: str = recipe_input_file) -> str:
-    """
-    Returns a single wikitext blob of all recipes with headers:
-    ## Production Name (Internal Name)
-    """
+def build_all_item_recipe_models(*, input_path: str = recipe_input_file) -> List[CraftingRecipeEntry]:
+    """Build all crafting recipe models (no wikitext)."""
     en = EnglishText()
     rows = _load_recipe_rows(input_path=input_path)
     by_pid = _index_rows_by_product_id(rows)
 
-    base_ids: List[str] = []
-    seen: set[str] = set()
-
     items_by_id = _load_item_rows(input_path=item_input_file)
+
+    base_ids: List[str] = []
+    seen_base: set[str] = set()
 
     for pid in by_pid.keys():
         base_id, variant_num = _true_variant_info_from_product_id(pid, items_by_id=items_by_id)
         if variant_num is not None:
             continue
-        if base_id in seen:
+        if base_id in seen_base:
             continue
-        seen.add(base_id)
+        seen_base.add(base_id)
         base_ids.append(base_id)
 
     base_ids.sort(key=lambda x: (_english_item_name(en, x) or x).casefold())
 
-    entries: List[str] = []
+    out: List[CraftingRecipeEntry] = []
     for base_id in base_ids:
-        production_name = _english_item_name(en, base_id) or base_id
-        header = f"## {production_name} ({base_id})"
-
-        recipe_text = build_item_recipe_wikitext(base_id, input_path=input_path).rstrip()
-        if not recipe_text:
+        model = build_item_recipe_model_by_product_id(base_id, recipe_path=input_path, item_path=item_input_file)
+        if not model:
             continue
 
-        entries.append(f"{header}\n{recipe_text}")
+        display_name = _english_item_name(en, base_id) or base_id
+        out.append({
+            "product_id": base_id,
+            "display_name": display_name,
+            "model": model,
+        })
 
-    return ("\n\n".join(entries).rstrip() + "\n") if entries else ""
+    return out
 
 
-def build_all_item_recipe_blocks(*, input_path: str = recipe_input_file) -> List[Tuple[str, str]]:
-    """
-    Returns a sorted list of (product_name, wikitext).
-    Import-safe: no file writes.
-    """
-    en = EnglishText()
-    rows = _load_recipe_rows(input_path=input_path)
-    by_pid = _index_rows_by_product_id(rows)
-
-    blocks: List[Tuple[str, str]] = []
-    seen_base: set[str] = set()
-
-    items_by_id = _load_item_rows(input_path=item_input_file)
-
-    for pid, row in by_pid.items():
-        if not isinstance(row, dict):
-            continue
-
-        base_id, variant_num = _true_variant_info_from_product_id(pid, items_by_id=items_by_id)
-        if variant_num is not None:
-            continue
-
-        if base_id in seen_base:
-            continue
-        seen_base.add(base_id)
-
-        text = build_item_recipe_wikitext(base_id, input_path=input_path)
-        if not text:
-            continue
-
-        product_name = _english_item_name(en, base_id) or base_id
-        blocks.append((product_name, text))
-
-    blocks.sort(key=lambda x: x[0].casefold())
-    return blocks
