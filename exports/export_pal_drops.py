@@ -1,11 +1,12 @@
 import os
 import sys
+from typing import List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
 from utils.console_utils import force_utf8_stdout
-from builders.pal_drops import build_all_pal_drops_text
+from builders.pal_drops import build_all_pal_drops_models, PalDropsModel
 
 force_utf8_stdout()
 
@@ -18,6 +19,34 @@ def write_text(path: str, text: str) -> None:
         os.makedirs(directory, exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
+
+
+def render_pal_drops(model: PalDropsModel) -> str:
+    if not model:
+        return ""
+
+    out: List[str] = []
+    out.append("{{Item Drop")
+    out.append(f"|palName = {model.get('pal_name', '')}")
+    out.append(f"|normal_drops = {model.get('normal_drops', '')}")
+    out.append(f"|alpha_drops = {model.get('alpha_drops', '')}")
+    out.append("}}")
+
+    return "\n".join(out).rstrip() + "\n"
+
+
+def build_all_pal_drops_text(*, include_blank_line: bool = True) -> str:
+    items = build_all_pal_drops_models()
+
+    blocks: List[str] = []
+    for _, model in items:
+        block = render_pal_drops(model)
+        if block:
+            blocks.append(block)
+            if include_blank_line:
+                blocks.append("\n")
+
+    return "".join(blocks).rstrip() + "\n"
 
 
 def main() -> None:

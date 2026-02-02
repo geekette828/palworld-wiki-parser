@@ -23,13 +23,16 @@ from exports.export_pal_infoboxes import render_pal_infobox  # type: ignore
 from builders.pal_drops import (  # type: ignore
     load_json as pal_drops_load_json,
     index_drop_rows_by_character_id,
-    build_pal_drop_wikitext,
+    build_pal_drops_model,
     build_pal_order as build_pal_order_drops,
 )
+from exports.export_pal_drops import render_pal_drops  # type: ignore
+
 from builders.pal_breeding import (  # type: ignore
-    build_pal_breeding_wikitext,
+    build_pal_breeding_model,
     build_pal_order as build_pal_order_breeding,
 )
+from exports.export_pal_breeding import render_pal_breeding  # type: ignore
 
 from utils.compare_utils import (  # type: ignore
     is_blank,
@@ -229,12 +232,12 @@ def _compare_and_patch_page(
         if wiki_block is None or s is None or e is None:
             warnings.append("No {{Item Drop}} template found on page.")
         else:
-            expected_block = build_pal_drop_wikitext(
+            drops_model = build_pal_drops_model(
                 pal_id,
-                param_rows=drops_ctx["param_rows"],
                 drops_by_character_id=drops_ctx["drops_by_character_id"],
                 en=en,
             )
+            expected_block = render_pal_drops(drops_model)
 
             exp_t, _, _ = extract_first_template_block(expected_block, "Item Drop")
             if exp_t is None:
@@ -275,12 +278,12 @@ def _compare_and_patch_page(
         if wiki_block is None or s is None or e is None:
             warnings.append("No {{Breeding}} template found on page.")
         else:
-            expected_block = build_pal_breeding_wikitext(
+            breeding_model = build_pal_breeding_model(
                 pal_id,
                 rows=breeding_ctx["param_rows"],
                 en=en,
-                include_header=False,
             )
+            expected_block = render_pal_breeding(breeding_model, include_header=False)
 
             exp_t, _, _ = extract_first_template_block(expected_block, "Breeding")
             if exp_t is None:
@@ -298,7 +301,10 @@ def _compare_and_patch_page(
                 )
 
                 if param_mismatches:
-                    diffs.extend([f"- breeding.{m[2:]}" if m.startswith("- ") else f"- breeding.{m}" for m in param_mismatches])
+                    diffs.extend([
+                        f"- breeding.{m[2:]}" if m.startswith("- ") else f"- breeding.{m}"
+                        for m in param_mismatches
+                    ])
 
                     patched_block, _patch_mismatches = patch_template_params_in_place(
                         template_text=wiki_block,

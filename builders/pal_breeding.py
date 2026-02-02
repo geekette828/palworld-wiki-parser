@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -30,6 +30,18 @@ EGG_ELEMENT_MAP = {
     "Dark": "Dark",
     "Dragon": "Dragon",
 }
+
+
+class PalBreedingModel(TypedDict, total=False):
+    base: str
+    display_name: str
+
+    breeding_rank: str
+    male_probability: str
+    combi_duplicate_priority: str
+    egg: str
+
+    unique_combos: str
 
 
 def egg_size_from_rarity(rarity: Any) -> str:
@@ -148,38 +160,34 @@ def build_pal_order(rows: dict) -> List[str]:
     return [base for _, base in pal_order]
 
 
-def build_pal_breeding_wikitext(base: str, *, rows: dict, en: EnglishText, include_header: bool = True) -> str:
+def build_pal_breeding_model(
+    base: str,
+    *,
+    rows: dict,
+    en: EnglishText,
+) -> PalBreedingModel:
     normal = rows.get(base)
     boss = rows.get(f"BOSS_{base}")
 
     if not isinstance(normal, dict) or not isinstance(boss, dict):
-        return ""
+        return {}
 
     pal_display_name = en.get_pal_name(base) or base
 
-    out: List[str] = []
+    model: PalBreedingModel = {
+        "base": base,
+        "display_name": pal_display_name,
+        "breeding_rank": fmt(normal.get("CombiRank")),
+        "male_probability": fmt(normal.get("MaleProbability")),
+        "combi_duplicate_priority": fmt(normal.get("CombiDuplicatePriority")),
+        "egg": build_breeding_egg(normal),
+        "unique_combos": "",
+    }
 
-    if include_header:
-        out.append(f"# {pal_display_name} ({base})")
-
-    out.append("==Breeding==")
-    out.append(
-        "[[Breeding]] allows Pals to be paired together to produce offspring, with outcomes determined by various breeding statistics and special parent combinations. "
-    )
-    out.append("{{Breeding")
-    out.append(f"|breeding_rank = {fmt(normal.get('CombiRank'))}")
-    out.append(f"|male_probability = {fmt(normal.get('MaleProbability'))}")
-    out.append(f"|combi_duplicate_priority = {fmt(normal.get('CombiDuplicatePriority'))}")
-    out.append(f"|egg = {build_breeding_egg(normal)}")
-    out.append("|uniqueCombos = ")
-    out.append("}}")
-    out.append("")
-    out.append("")
-
-    return "\n".join(out).rstrip() + "\n"
+    return model
 
 
-def build_all_pal_breeding_text(*, include_headers: bool = True) -> str:
+def build_all_pal_breeding_models(*, include_headers: bool = True) -> List[Tuple[str, PalBreedingModel]]:
     with open(param_input_file, "r", encoding="utf-8") as f:
         param_data = json.load(f)
 
@@ -188,9 +196,34 @@ def build_all_pal_breeding_text(*, include_headers: bool = True) -> str:
 
     base_names = build_pal_order(rows)
 
-    blocks: List[str] = []
+    out: List[Tuple[str, PalBreedingModel]] = []
     for base in base_names:
-        block = build_pal_breeding_wikitext(base, rows=rows, en=en, include_header=include_headers)
+        model = build_pal_breeding_model(base, rows=rows, en=en)
+        if model:
+            out.append((model.get("display_name", base), model))
+
+    return out
+
+
+# Backwards-compatible wrapper for existing callers (compare script, etc.)
+def build_pal_breeding_wikitext(base: str, *, rows: dict, en: EnglishText, include_header: bool = True) -> str:
+    from exports.export_pal_breeding import render_pal_breeding  # local import to avoid circulars
+
+    model = build_pal_breeding_model(base, rows=rows, en=en)
+    if not model:
+        return ""
+    return render_pal_breeding(model, include_header=include_header)
+
+
+# Backwards-compatible export helper (older exporter imported this)
+def build_all_pal_breeding_text(*, include_headers: bool = True) -> str:
+    from exports.export_pal_breeding import render_pal_breeding  # local import to avoid circulars
+
+    items = build_all_pal_breeding_models(include_headers=include_headers)
+
+    blocks: List[str] = []
+    for _, model in items:
+        block = render_pal_breeding(model, include_header=include_headers)
         if block:
             blocks.append(block)
             blocks.append("\n")

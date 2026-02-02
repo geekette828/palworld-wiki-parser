@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple, TypedDict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -11,6 +11,13 @@ from utils.english_text_utils import EnglishText
 
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
 drop_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalDropItem.json")
+
+
+class PalDropsModel(TypedDict, total=False):
+    base: str
+    pal_name: str
+    normal_drops: str
+    alpha_drops: str
 
 
 def load_json(path: str):
@@ -148,13 +155,12 @@ def build_pal_order(param_rows: dict) -> List[str]:
     return [base for _, base in pal_order]
 
 
-def build_pal_drop_wikitext(
+def build_pal_drops_model(
     base: str,
     *,
-    param_rows: dict,
     drops_by_character_id: dict,
     en: EnglishText,
-) -> str:
+) -> PalDropsModel:
     pal_display_name = get_pal_display_name(en, base)
 
     normal_drop_row = drops_by_character_id.get(base)
@@ -163,17 +169,15 @@ def build_pal_drop_wikitext(
     normal_text = extract_drop_list(normal_drop_row, en) if normal_drop_row else ""
     alpha_text = extract_drop_list(alpha_drop_row, en) if alpha_drop_row else ""
 
-    out: List[str] = []
-    out.append("{{Item Drop")
-    out.append(f"|palName = {pal_display_name}")
-    out.append(f"|normal_drops = {normal_text}")
-    out.append(f"|alpha_drops = {alpha_text}")
-    out.append("}}")
-
-    return "\n".join(out).rstrip() + "\n"
+    return {
+        "base": base,
+        "pal_name": pal_display_name,
+        "normal_drops": normal_text,
+        "alpha_drops": alpha_text,
+    }
 
 
-def build_all_pal_drops_text(*, include_blank_line: bool = True) -> str:
+def build_all_pal_drops_models() -> List[Tuple[str, PalDropsModel]]:
     en = EnglishText()
 
     param_data = load_json(param_input_file)
@@ -185,14 +189,42 @@ def build_all_pal_drops_text(*, include_blank_line: bool = True) -> str:
     drops_by_character_id = index_drop_rows_by_character_id(drop_rows)
     base_names = build_pal_order(param_rows)
 
-    blocks: List[str] = []
+    out: List[Tuple[str, PalDropsModel]] = []
     for base in base_names:
-        block = build_pal_drop_wikitext(
+        model = build_pal_drops_model(
             base,
-            param_rows=param_rows,
             drops_by_character_id=drops_by_character_id,
             en=en,
         )
+        if model:
+            out.append((model.get("pal_name", base), model))
+
+    return out
+
+
+# Backwards-compatible wrapper for existing callers (compare script, etc.)
+def build_pal_drop_wikitext(
+    base: str,
+    *,
+    param_rows: dict,
+    drops_by_character_id: dict,
+    en: EnglishText,
+) -> str:
+    from exports.export_pal_drops import render_pal_drops  # local import to avoid circulars
+
+    model = build_pal_drops_model(base, drops_by_character_id=drops_by_character_id, en=en)
+    return render_pal_drops(model)
+
+
+# Backwards-compatible export helper (older exporter imported this)
+def build_all_pal_drops_text(*, include_blank_line: bool = True) -> str:
+    from exports.export_pal_drops import render_pal_drops  # local import to avoid circulars
+
+    items = build_all_pal_drops_models()
+
+    blocks: List[str] = []
+    for _, model in items:
+        block = render_pal_drops(model)
         if block:
             blocks.append(block)
             if include_blank_line:
