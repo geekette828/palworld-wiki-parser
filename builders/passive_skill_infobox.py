@@ -2,20 +2,36 @@ import os
 import re
 import sys
 import json
-from typing import Optional
+from typing import Any, Dict, List, Optional, TypedDict, Tuple
+from functools import lru_cache
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
 from config.name_map import ELEMENT_NAME_MAP
 from utils.english_text_utils import clean_english_text
-from utils.console_utils import force_utf8_stdout
 
-force_utf8_stdout()
 
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "PassiveSkill", "DT_PassiveSkill_Main.json")
 en_name_file = constants.EN_SKILL_NAME_FILE
 en_description_file = constants.EN_SKILL_DESC_FILE
+
+
+class PassiveSkillEffect(TypedDict, total=False):
+    index: int
+    effect_type_leaf: str
+    label: str
+    value_raw: float
+    value_text: str
+    target_type_leaf: str
+
+
+class PassiveSkillModel(TypedDict, total=False):
+    passive_skill_id: str
+    display_name: str
+    description: str
+    rank: str
+    effects: List[PassiveSkillEffect]
 
 
 def normalize_title(s: str) -> str:
@@ -23,12 +39,12 @@ def normalize_title(s: str) -> str:
     return " ".join(s.split())
 
 
-def load_json(path: str):
+def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def extract_localized_text(entry) -> str:
+def _extract_localized_text(entry: Any) -> str:
     if entry is None:
         return ""
 
@@ -47,7 +63,7 @@ def extract_localized_text(entry) -> str:
     return ""
 
 
-def extract_datatable_rows(data, *, source: str = "") -> dict:
+def _extract_datatable_rows(data: Any, *, source: str = "") -> Dict[str, Any]:
     if isinstance(data, list):
         dt_obj = None
         for entry in data:
@@ -69,35 +85,36 @@ def extract_datatable_rows(data, *, source: str = "") -> dict:
     return rows
 
 
-def load_text_table(path: str) -> dict:
-    raw = load_json(path)
-    rows = extract_datatable_rows(raw, source=os.path.basename(path))
+@lru_cache(maxsize=1)
+def _load_text_table(path: str) -> Dict[str, str]:
+    raw = _load_json(path)
+    rows = _extract_datatable_rows(raw, source=os.path.basename(path))
 
-    out = {}
+    out: Dict[str, str] = {}
     for k, v in rows.items():
-        out[str(k)] = extract_localized_text(v)
+        out[str(k)] = _extract_localized_text(v)
 
     return out
 
 
-def enum_leaf(v: str) -> str:
+def _enum_leaf(v: Any) -> str:
     v = str(v or "")
     if "::" in v:
         return v.split("::")[-1]
     return v
 
 
-def is_placeholder_name(s: str) -> bool:
+def _is_placeholder_name(s: str) -> bool:
     s = str(s or "").strip()
     return s == "" or s.lower() == "en text"
 
 
-def is_displayable_passive(row_id: str, row: dict, *, english_name: str) -> bool:
-    category_leaf = enum_leaf(row.get("Category", ""))
+def _is_displayable_passive(row_id: str, row: dict, *, english_name: str) -> bool:
+    category_leaf = _enum_leaf(row.get("Category", ""))
     if category_leaf == "SortNotDisplayable":
         return False
 
-    if is_placeholder_name(english_name):
+    if _is_placeholder_name(english_name):
         return False
 
     rid = str(row_id or "")
@@ -107,7 +124,7 @@ def is_displayable_passive(row_id: str, row: dict, *, english_name: str) -> bool
     return True
 
 
-def humanize_effect_type(effect_type_leaf: str) -> str:
+def _humanize_effect_type(effect_type_leaf: str) -> str:
     effect_type_leaf = str(effect_type_leaf or "").strip()
     if effect_type_leaf == "":
         return ""
@@ -148,7 +165,7 @@ def humanize_effect_type(effect_type_leaf: str) -> str:
     return spaced
 
 
-def format_effect_value(v) -> str:
+def _format_effect_value(v: Any) -> str:
     try:
         n = float(v)
     except (TypeError, ValueError):
@@ -161,9 +178,9 @@ def format_effect_value(v) -> str:
     return f"{n_str}%"
 
 
-def get_effect_slots(passive_row: dict) -> list:
-    slots = []
-    indices = []
+def _get_effects(passive_row: dict) -> List[PassiveSkillEffect]:
+    effects: List[PassiveSkillEffect] = []
+    indices: List[int] = []
 
     for k in passive_row.keys():
         m = re.match(r"^EffectType(\d+)$", str(k))
@@ -175,7 +192,7 @@ def get_effect_slots(passive_row: dict) -> list:
         effect_value = passive_row.get(f"EffectValue{i}")
         target_type = passive_row.get(f"TargetType{i}")
 
-        effect_type_leaf = enum_leaf(effect_type)
+        effect_type_leaf = _enum_leaf(effect_type)
 
         if effect_type_leaf.lower() == "no":
             continue
@@ -188,47 +205,42 @@ def get_effect_slots(passive_row: dict) -> list:
         if abs(n) < 1e-12:
             continue
 
-        slots.append(
+        effects.append(
             {
                 "index": i,
                 "effect_type_leaf": effect_type_leaf,
-                "effect_label": humanize_effect_type(effect_type_leaf),
-                "effect_value_raw": n,
-                "effect_value_text": format_effect_value(effect_value),
-                "target_type_leaf": enum_leaf(target_type),
+                "label": _humanize_effect_type(effect_type_leaf),
+                "value_raw": n,
+                "value_text": _format_effect_value(effect_value),
+                "target_type_leaf": _enum_leaf(target_type),
             }
         )
 
-    return slots
+    return effects
 
 
-def build_description_from_effects(effect_slots: list) -> str:
-    if not effect_slots:
+def _build_description_from_effects(effects: List[PassiveSkillEffect]) -> str:
+    if not effects:
         return ""
 
-    parts = []
-    for e in effect_slots:
-        label = e["effect_label"]
-        val = e["effect_value_text"]
-
+    parts: List[str] = []
+    for e in effects:
+        label = e.get("label", "")
+        val = e.get("value_text", "")
         if label and val:
             parts.append(f"{label} {val}")
 
     return "\n".join(parts)
 
 
-def escape_pipe(v: str) -> str:
-    return str(v or "").replace("|", "{{!}}")
-
-
-def is_none_text(v) -> bool:
+def _is_none_text(v: Any) -> bool:
     s = str(v or "").strip()
     return s == "" or s.lower() == "none"
 
 
-def first_text(table: dict, keys: list) -> str:
+def _first_text(table: Dict[str, str], keys: List[Any]) -> str:
     for k in keys:
-        if is_none_text(k):
+        if _is_none_text(k):
             continue
         s = table.get(str(k), "")
         if s:
@@ -236,118 +248,150 @@ def first_text(table: dict, keys: list) -> str:
     return ""
 
 
-def build_infobox_wikitext(*, title: str, description: str, rank, effects: str) -> str:
-    lines = []
-    lines.append("{{Passive Skill Infobox")
-    lines.append(f"|title = {escape_pipe(title)}")
-    lines.append(f"|description = {escape_pipe(description)}")
-    lines.append(f"|rank = {escape_pipe(str(rank or ''))}")
-    lines.append(f"|effects = {escape_pipe(effects)}")
-    lines.append("}}")
-    return "\n".join(lines).rstrip() + "\n"
+@lru_cache(maxsize=1)
+def _load_passive_rows() -> Dict[str, dict]:
+    raw_passive_data = _load_json(param_input_file)
+    passive_rows = _extract_datatable_rows(raw_passive_data, source=os.path.basename(param_input_file))
+    out: Dict[str, dict] = {}
+    for passive_id, row in passive_rows.items():
+        if isinstance(row, dict):
+            out[str(passive_id)] = row
+    return out
 
 
-def build_infobox_entry(
-    row_id: str,
-    row: dict,
-    *,
-    en_skill_names: dict,
-    en_skill_desc: dict,
-) -> tuple[str, str, str]:
-    row_id = str(row_id)
+@lru_cache(maxsize=1)
+def _build_name_to_id_map() -> Dict[str, str]:
+    passive_rows = _load_passive_rows()
+    en_skill_names = _load_text_table(en_name_file)
+
+    out: Dict[str, str] = {}
+    for passive_id, row in passive_rows.items():
+        name_keys = [
+            row.get("OverrideNameTextID"),
+            row.get("OverrideSummaryTextId"),
+            f"PASSIVE_{passive_id}",
+            passive_id,
+        ]
+
+        english_name = _first_text(en_skill_names, name_keys)
+        if english_name:
+            english_name = clean_english_text(english_name)
+
+        if not english_name:
+            english_name = passive_id
+
+        if not _is_displayable_passive(passive_id, row, english_name=english_name):
+            continue
+
+        key = normalize_title(english_name).casefold()
+        if key and key not in out:
+            out[key] = passive_id
+
+    return out
+
+
+def resolve_passive_skill_id_from_name(name: str) -> str:
+    name = normalize_title(name)
+    if not name:
+        return ""
+    m = _build_name_to_id_map()
+    return m.get(name.casefold(), "")
+
+
+def build_passive_skill_model_by_id(passive_skill_id: str) -> Optional[PassiveSkillModel]:
+    passive_skill_id = str(passive_skill_id or "").strip()
+    if not passive_skill_id:
+        return None
+
+    passive_rows = _load_passive_rows()
+    row = passive_rows.get(passive_skill_id)
+    if not isinstance(row, dict):
+        return None
+
+    en_skill_names = _load_text_table(en_name_file)
+    en_skill_desc = _load_text_table(en_description_file)
 
     name_keys = [
         row.get("OverrideNameTextID"),
         row.get("OverrideSummaryTextId"),
-        f"PASSIVE_{row_id}",
-        row_id,
+        f"PASSIVE_{passive_skill_id}",
+        passive_skill_id,
     ]
     desc_keys = [
         row.get("OverrideDescMsgID"),
-        f"PASSIVE_{row_id}",
-        row_id,
+        f"PASSIVE_{passive_skill_id}",
+        passive_skill_id,
     ]
 
-    english_name = first_text(en_skill_names, name_keys)
+    english_name = _first_text(en_skill_names, name_keys)
     if english_name:
         english_name = clean_english_text(english_name)
-
     if not english_name:
-        english_name = row_id
+        english_name = passive_skill_id
 
-    english_desc = first_text(en_skill_desc, desc_keys)
+    if not _is_displayable_passive(passive_skill_id, row, english_name=english_name):
+        return None
+
+    english_desc = _first_text(en_skill_desc, desc_keys)
     if english_desc:
         english_desc = clean_english_text(english_desc, row=row)
 
-    rank = row.get("Rank", "")
-
-    effect_slots = get_effect_slots(row)
+    rank = str(row.get("Rank", "") or "")
+    effects = _get_effects(row)
 
     if not english_desc:
-        english_desc = build_description_from_effects(effect_slots)
+        english_desc = _build_description_from_effects(effects)
 
-    effects_out_parts = []
-    for e in effect_slots:
-        label = e["effect_label"]
-        val = e["effect_value_text"]
-        if label and val:
-            effects_out_parts.append(f"{label}*{val}")
+    model: PassiveSkillModel = {
+        "passive_skill_id": passive_skill_id,
+        "display_name": normalize_title(english_name),
+        "description": str(english_desc or "").strip(),
+        "rank": str(rank or "").strip(),
+        "effects": effects,
+    }
 
-    effects_out = "; ".join(effects_out_parts)
-
-    wikitext = build_infobox_wikitext(
-        title=english_name,
-        description=english_desc,
-        rank=rank,
-        effects=effects_out,
-    )
-
-    return normalize_title(english_name), wikitext, english_name
+    return model
 
 
-def build_infobox_map() -> dict[str, str]:
-    """Return { 'English Name': '{{Passive Skill Infobox...}}\\n' } for displayable passive skills."""
-    print("🔍 Loading English text tables...")
-    en_skill_names = load_text_table(en_name_file)
-    en_skill_desc = load_text_table(en_description_file)
+def build_passive_skill_model_from_name(name: str) -> Optional[PassiveSkillModel]:
+    passive_id = resolve_passive_skill_id_from_name(name)
+    if not passive_id:
+        return None
+    return build_passive_skill_model_by_id(passive_id)
 
-    print("🔍 Loading passive skills...")
-    raw_passive_data = load_json(param_input_file)
-    passive_data = extract_datatable_rows(raw_passive_data, source="DT_PassiveSkill_Main.json")
 
-    out: dict[str, str] = {}
-    total = len(passive_data)
-    processed = 0
-    kept = 0
+def build_all_passive_skill_models() -> List[PassiveSkillModel]:
+    passive_rows = _load_passive_rows()
+    en_skill_names = _load_text_table(en_name_file)
 
-    for passive_id, row in passive_data.items():
+    ids: List[str] = []
+    for passive_id, row in passive_rows.items():
         if not isinstance(row, dict):
             continue
 
-        processed += 1
-        if processed % 250 == 0:
-            print(f"🔄 Processed {processed}/{total} passive skills...")
+        name_keys = [
+            row.get("OverrideNameTextID"),
+            row.get("OverrideSummaryTextId"),
+            f"PASSIVE_{passive_id}",
+            passive_id,
+        ]
 
-        name, wikitext, english_name = build_infobox_entry(
-            str(passive_id),
-            row,
-            en_skill_names=en_skill_names,
-            en_skill_desc=en_skill_desc,
-        )
+        english_name = _first_text(en_skill_names, name_keys)
+        if english_name:
+            english_name = clean_english_text(english_name)
+        if not english_name:
+            english_name = passive_id
 
-        if not is_displayable_passive(str(passive_id), row, english_name=english_name):
+        if not _is_displayable_passive(passive_id, row, english_name=english_name):
             continue
 
-        out[name] = wikitext
-        kept += 1
+        ids.append(passive_id)
 
-    print(f"✅ Kept {kept}/{total} passive skills after filtering.")
-    return out
+    models: List[PassiveSkillModel] = []
+    for passive_id in ids:
+        m = build_passive_skill_model_by_id(passive_id)
+        if m:
+            models.append(m)
 
-
-def get_infobox_for_skill(skill_name: str, *, infobox_map: Optional[dict[str, str]] = None) -> str:
-    """Convenience helper for page builders: returns the infobox wikitext for a given skill name."""
-    skill_name = normalize_title(skill_name)
-    if infobox_map is None:
-        infobox_map = build_infobox_map()
-    return infobox_map.get(skill_name, "")
+    models.sort(key=lambda d: str(d.get("display_name", "")).casefold())
+    return models
