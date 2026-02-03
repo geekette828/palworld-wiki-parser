@@ -1,16 +1,18 @@
 import os
 import sys
 import json
-from typing import Any, List, Tuple, TypedDict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Any, List, Tuple, TypedDict
 from utils.json_datatable_utils import extract_datatable_rows
 from utils.english_text_utils import EnglishText
 
+#Paths
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
 drop_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalDropItem.json")
+
 
 
 class PalDropsModel(TypedDict, total=False):
@@ -19,11 +21,9 @@ class PalDropsModel(TypedDict, total=False):
     normal_drops: str
     alpha_drops: str
 
-
 def load_json(path: str):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
-
 
 def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
     if zukan_index is None:
@@ -43,7 +43,6 @@ def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
         return base
     return f"{base}{suf}"
 
-
 def format_chance(rate_value: Any) -> str:
     try:
         f = float(rate_value)
@@ -54,18 +53,15 @@ def format_chance(rate_value: Any) -> str:
         return str(int(f))
     return str(f).rstrip("0").rstrip(".")
 
-
 def get_pal_display_name(en: EnglishText, pal_id: str) -> str:
     pal_id = str(pal_id).strip()
     name = en.get_pal_name(pal_id)
     return name if name else pal_id
 
-
 def get_item_display_name(en: EnglishText, item_id: str) -> str:
     item_id = str(item_id).strip()
     name = en.get_item_name(item_id)
     return name if name else item_id
-
 
 def extract_drop_list(drop_row: dict, en: EnglishText) -> str:
     if not isinstance(drop_row, dict):
@@ -107,7 +103,6 @@ def extract_drop_list(drop_row: dict, en: EnglishText) -> str:
 
     return "; ".join(parts)
 
-
 def index_drop_rows_by_character_id(drop_rows: dict) -> dict:
     by_id = {}
     for _, row in (drop_rows or {}).items():
@@ -131,7 +126,6 @@ def index_drop_rows_by_character_id(drop_rows: dict) -> dict:
 
     return by_id
 
-
 def build_pal_order(param_rows: dict) -> List[str]:
     pal_order = []
     for key, row in (param_rows or {}).items():
@@ -154,7 +148,6 @@ def build_pal_order(param_rows: dict) -> List[str]:
     pal_order.sort(key=lambda x: (int(x[0][:3]), x[0][3:]))
     return [base_id for _, base_id in pal_order]
 
-
 def build_pal_drops_model_by_id(
     base_id: str,
     *,
@@ -175,7 +168,6 @@ def build_pal_drops_model_by_id(
         "normal_drops": normal_text,
         "alpha_drops": alpha_text,
     }
-
 
 def build_all_pal_drops_models() -> List[Tuple[str, PalDropsModel]]:
     en = EnglishText()

@@ -2,20 +2,21 @@ import os
 import re
 import sys
 import json
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, DefaultDict
-from collections import defaultdict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, DefaultDict
+from collections import defaultdict
 from utils.json_datatable_utils import extract_datatable_rows
 from utils.english_text_utils import EnglishText
 
-
+#Paths
 item_lottery_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemLotteryDataTable.json")
 dungeon_item_lottery_input_file = os.path.join(constants.INPUT_DIRECTORY, "Dungeon", "DT_DungeonItemLotteryDataTable.json")
 
 
+#Mapping
 ENEMY_BASE_BIOME_TO_FACTION = {
     "Volcano": "Brothers of the Eternal Pyre",
     "Grass": "Rayne Syndicate",
@@ -31,6 +32,7 @@ HARDCODED_ITEM_NAME_OVERRIDES = {
     "TreasureMap05": "Treasure Map (Legendary)",
 }
 
+
 _GRADE_NUM_RE = re.compile(r"::\s*Grade\s*(\d+)\s*$", re.IGNORECASE)
 _ENUM_LEAF_RE = re.compile(r"::\s*([A-Za-z0-9_]+)\s*$")
 _ENEMY_CAMP_NAME_RE = re.compile(
@@ -39,7 +41,6 @@ _ENEMY_CAMP_NAME_RE = re.compile(
     r"(?P<tier>01|02)?"
     r"(?P<hi>_02)?$"
 )
-
 
 class ItemLotteryRow(TypedDict, total=False):
     FieldName: str
@@ -51,12 +52,10 @@ class ItemLotteryRow(TypedDict, total=False):
     NumUnit: Any
     TreasureBoxGrade: str
 
-
 class DungeonItemLotteryRow(TypedDict, total=False):
     SpawnAreaId: str
     Type: str
     ItemFieldLotteryName: str
-
 
 class ChestDropEntry(TypedDict, total=False):
     slot_number: int
@@ -66,22 +65,18 @@ class ChestDropEntry(TypedDict, total=False):
     max_num: int
     weight: float
 
-
 class ChestDropGroup(TypedDict, total=False):
     chest_name: str
     grade_number: str
     location: str
     entries: List[ChestDropEntry]
 
-
 def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-
 def _trim(v: Any) -> str:
     return str(v or "").strip()
-
 
 def _to_int(v: Any) -> int:
     try:
@@ -89,13 +84,11 @@ def _to_int(v: Any) -> int:
     except (TypeError, ValueError):
         return 0
 
-
 def _to_float(v: Any) -> float:
     try:
         return float(v)
     except (TypeError, ValueError):
         return 0.0
-
 
 def _parse_enum_leaf(v: Any) -> str:
     s = _trim(v)
@@ -105,7 +98,6 @@ def _parse_enum_leaf(v: Any) -> str:
     if m:
         return m.group(1)
     return s
-
 
 def _parse_grade_number(treasure_box_grade: Any) -> str:
     s = _trim(treasure_box_grade)
@@ -118,7 +110,6 @@ def _parse_grade_number(treasure_box_grade: Any) -> str:
 
     digits = re.findall(r"(\d+)", s)
     return digits[-1] if digits else ""
-
 
 def build_enemy_base_location(field_name: str, grade_number: str) -> str:
     m = _ENEMY_CAMP_NAME_RE.match(field_name or "")
@@ -140,7 +131,6 @@ def build_enemy_base_location(field_name: str, grade_number: str) -> str:
     prefix = "High Level " if is_level_60_plus else ""
     return f"{prefix}{faction} Enemy Base ({chest_kind}: Grade {grade_number})"
 
-
 def _get_item_display_name(en: EnglishText, static_item_id: Any) -> str:
     internal = _trim(static_item_id)
     if not internal:
@@ -152,7 +142,6 @@ def _get_item_display_name(en: EnglishText, static_item_id: Any) -> str:
     name = en.get_item_name(internal)
     return name or internal
 
-
 def _load_item_lottery_rows(*, input_path: str) -> Dict[str, ItemLotteryRow]:
     raw = _load_json(input_path)
     rows = extract_datatable_rows(raw, source=os.path.basename(input_path)) or {}
@@ -162,7 +151,6 @@ def _load_item_lottery_rows(*, input_path: str) -> Dict[str, ItemLotteryRow]:
             out[str(row_id)] = row  # type: ignore[assignment]
     return out
 
-
 def _load_dungeon_item_lottery_rows(*, input_path: str) -> Dict[str, DungeonItemLotteryRow]:
     raw = _load_json(input_path)
     rows = extract_datatable_rows(raw, source=os.path.basename(input_path)) or {}
@@ -171,7 +159,6 @@ def _load_dungeon_item_lottery_rows(*, input_path: str) -> Dict[str, DungeonItem
         if isinstance(row, dict):
             out[str(row_id)] = row  # type: ignore[assignment]
     return out
-
 
 def _build_group(
     *,
@@ -220,7 +207,6 @@ def _build_group(
         "entries": entries,
     }
 
-
 def build_enemy_base_chest_drop_groups(
     *,
     input_path: str = item_lottery_input_file,
@@ -261,7 +247,6 @@ def build_enemy_base_chest_drop_groups(
 
     return out
 
-
 def build_oilrig_chest_drop_groups(
     *,
     input_path: str = item_lottery_input_file,
@@ -299,7 +284,6 @@ def build_oilrig_chest_drop_groups(
         )
 
     return out
-
 
 def build_dungeon_chest_drop_groups(
     *,
@@ -364,7 +348,6 @@ def build_dungeon_chest_drop_groups(
         )
 
     return out
-
 
 def build_all_chest_drop_export_models() -> Dict[str, List[ChestDropGroup]]:
     out: Dict[str, List[ChestDropGroup]] = {}

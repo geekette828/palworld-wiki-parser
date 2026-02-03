@@ -1,62 +1,28 @@
 import re
 import os
-from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 from config import constants
-
+from dataclasses import dataclass
+from typing import Dict, List, Optional
 from utils.english_text_utils import EnglishText, clean_english_text
-
-from builders.pal_infobox import (
-    load_rows,
-    build_waza_master_index,
-    build_pal_infobox_model_by_id,
-    after_double_colon,
-    normalize_element,
-)
+from utils.json_datatable_utils import extract_datatable_rows
+from builders.pal_drops import (load_json, index_drop_rows_by_character_id, build_pal_drops_model_by_id)
+from builders.pal_infobox import (load_rows, build_waza_master_index, build_pal_infobox_model_by_id, after_double_colon, normalize_element)
+from builders.pal_breeding import (build_pal_breeding_model_by_id)
 from exports.export_pal_infoboxes import render_pal_infobox
-
-from builders.pal_drops import (
-    load_json,
-    index_drop_rows_by_character_id,
-    build_pal_drops_model_by_id,
-)
 from exports.export_pal_drops import render_pal_drops
-
-from builders.pal_breeding import (
-    build_pal_breeding_model_by_id,
-)
 from exports.export_pal_breeding import render_pal_breeding
 
-from utils.json_datatable_utils import extract_datatable_rows
-
-
-PARAM_INPUT_FILE = os.path.join(
-    constants.INPUT_DIRECTORY,
-    "Character",
-    "DT_PalMonsterParameter.json",
-)
-
-DROP_INPUT_FILE = os.path.join(
-    constants.INPUT_DIRECTORY,
-    "Character",
-    "DT_PalDropItem.json",
-)
-
-ACTIVE_SKILL_INPUT_FILE = os.path.join(
-    constants.INPUT_DIRECTORY,
-    "Waza",
-    "DT_WazaMasterLevel.json",
-)
-
+#Paths
+PARAM_INPUT_FILE = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
+DROP_INPUT_FILE = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalDropItem.json")
+ACTIVE_SKILL_INPUT_FILE = os.path.join(constants.INPUT_DIRECTORY, "Waza", "DT_WazaMasterLevel.json")
 _PAL_ACTIVATE_TEXT_INPUT_FILE = constants.EN_PAL_ACTIVATE_FILE
 _PARTNER_SKILL_NAME_TEXT_INPUT_FILE = constants.EN_SKILL_NAME_FILE
 
 
-_CHARACTER_NAME_TAG_RE = re.compile(
-    r"<characterName\b[^|>]*\|([^|>]+)\|/>",
-    flags=re.IGNORECASE,
-)
+_CHARACTER_NAME_TAG_RE = re.compile(r"<characterName\b[^|>]*\|([^|>]+)\|/>", flags=re.IGNORECASE,)
+
 
 
 def _resolve_character_name_tags(text: str, en: EnglishText) -> str:
@@ -70,13 +36,11 @@ def _resolve_character_name_tags(text: str, en: EnglishText) -> str:
 
     return _CHARACTER_NAME_TAG_RE.sub(repl, s)
 
-
 def _clean_palpedia_description(raw: str, en: EnglishText, row: Optional[dict]) -> str:
     s = str(raw or "").replace("\r\n", " ")
     s = _resolve_character_name_tags(s, en)
     s = clean_english_text(s, row)
     return " ".join(s.split())
-
 
 @dataclass(frozen=True)
 class PalPageOptions:
@@ -88,7 +52,6 @@ class PalPageOptions:
     include_characteristics: bool = True
     include_drops: bool = True
     include_breeding: bool = True
-
 
 AI_BEHAVIOR_TEMPLATES: Dict[str, str] = {
     "Friendly": (
@@ -113,7 +76,6 @@ AI_BEHAVIOR_TEMPLATES: Dict[str, str] = {
     ),
 }
 
-
 def _get_primary_element(rows: Dict[str, dict], base_id: str) -> str:
     row = rows.get(base_id)
     if not isinstance(row, dict):
@@ -122,14 +84,12 @@ def _get_primary_element(rows: Dict[str, dict], base_id: str) -> str:
     raw = after_double_colon(row.get("ElementType1"))
     return normalize_element(raw)
 
-
 def _get_ai_response(rows: Dict[str, dict], base_id: str) -> str:
     row = rows.get(base_id)
     if not isinstance(row, dict):
         return ""
     v = row.get("AIResponse")
     return str(v).strip() if v is not None else ""
-
 
 def _build_behavior_text(pal_name: str, ai_response: str, *, include_placeholders: bool) -> str:
     pal_name = str(pal_name or "").strip()
@@ -142,7 +102,6 @@ def _build_behavior_text(pal_name: str, ai_response: str, *, include_placeholder
         return "<We're going to write this in a minute, put a placeholder for now>"
 
     return ""
-
 
 def _extract_template_block(wikitext: str, template_name: str) -> str:
     if not wikitext:
@@ -169,7 +128,6 @@ def _extract_template_block(wikitext: str, template_name: str) -> str:
         return ""
 
     return "\n".join(lines[start : end + 1]).rstrip()
-
 
 def build_pal_page_sections(
     base_id: str,
@@ -385,7 +343,6 @@ def build_pal_page_wikitext(
     add("footer")
 
     return "\n".join(out).rstrip() + "\n"
-
 
 def build_pal_page_from_files(
     base_id: str,

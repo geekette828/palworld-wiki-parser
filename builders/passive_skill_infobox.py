@@ -2,19 +2,20 @@ import os
 import re
 import sys
 import json
-from typing import Any, Dict, List, Optional, TypedDict, Tuple
-from functools import lru_cache
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Any, Dict, List, Optional, TypedDict, Tuple
+from functools import lru_cache
 from config.name_map import ELEMENT_NAME_MAP
 from utils.english_text_utils import clean_english_text
 
-
+#Paths
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "PassiveSkill", "DT_PassiveSkill_Main.json")
 en_name_file = constants.EN_SKILL_NAME_FILE
 en_description_file = constants.EN_SKILL_DESC_FILE
+
 
 
 class PassiveSkillEffect(TypedDict, total=False):
@@ -25,7 +26,6 @@ class PassiveSkillEffect(TypedDict, total=False):
     value_text: str
     target_type_leaf: str
 
-
 class PassiveSkillModel(TypedDict, total=False):
     passive_skill_id: str
     display_name: str
@@ -33,16 +33,13 @@ class PassiveSkillModel(TypedDict, total=False):
     rank: str
     effects: List[PassiveSkillEffect]
 
-
 def normalize_title(s: str) -> str:
     s = str(s or "").strip()
     return " ".join(s.split())
 
-
 def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
-
 
 def _extract_localized_text(entry: Any) -> str:
     if entry is None:
@@ -61,7 +58,6 @@ def _extract_localized_text(entry: Any) -> str:
         return str(s).strip()
 
     return ""
-
 
 def _extract_datatable_rows(data: Any, *, source: str = "") -> Dict[str, Any]:
     if isinstance(data, list):
@@ -84,7 +80,6 @@ def _extract_datatable_rows(data: Any, *, source: str = "") -> Dict[str, Any]:
 
     return rows
 
-
 @lru_cache(maxsize=1)
 def _load_text_table(path: str) -> Dict[str, str]:
     raw = _load_json(path)
@@ -96,18 +91,15 @@ def _load_text_table(path: str) -> Dict[str, str]:
 
     return out
 
-
 def _enum_leaf(v: Any) -> str:
     v = str(v or "")
     if "::" in v:
         return v.split("::")[-1]
     return v
 
-
 def _is_placeholder_name(s: str) -> bool:
     s = str(s or "").strip()
     return s == "" or s.lower() == "en text"
-
 
 def _is_displayable_passive(row_id: str, row: dict, *, english_name: str) -> bool:
     category_leaf = _enum_leaf(row.get("Category", ""))
@@ -122,7 +114,6 @@ def _is_displayable_passive(row_id: str, row: dict, *, english_name: str) -> boo
         return False
 
     return True
-
 
 def _humanize_effect_type(effect_type_leaf: str) -> str:
     effect_type_leaf = str(effect_type_leaf or "").strip()
@@ -164,7 +155,6 @@ def _humanize_effect_type(effect_type_leaf: str) -> str:
     spaced = spaced.replace("_", " ").strip()
     return spaced
 
-
 def _format_effect_value(v: Any) -> str:
     try:
         n = float(v)
@@ -176,7 +166,6 @@ def _format_effect_value(v: Any) -> str:
     else:
         n_str = str(n).rstrip("0").rstrip(".")
     return f"{n_str}%"
-
 
 def _get_effects(passive_row: dict) -> List[PassiveSkillEffect]:
     effects: List[PassiveSkillEffect] = []
@@ -218,7 +207,6 @@ def _get_effects(passive_row: dict) -> List[PassiveSkillEffect]:
 
     return effects
 
-
 def _build_description_from_effects(effects: List[PassiveSkillEffect]) -> str:
     if not effects:
         return ""
@@ -232,11 +220,9 @@ def _build_description_from_effects(effects: List[PassiveSkillEffect]) -> str:
 
     return "\n".join(parts)
 
-
 def _is_none_text(v: Any) -> bool:
     s = str(v or "").strip()
     return s == "" or s.lower() == "none"
-
 
 def _first_text(table: Dict[str, str], keys: List[Any]) -> str:
     for k in keys:
@@ -247,7 +233,6 @@ def _first_text(table: Dict[str, str], keys: List[Any]) -> str:
             return str(s).strip()
     return ""
 
-
 @lru_cache(maxsize=1)
 def _load_passive_rows() -> Dict[str, dict]:
     raw_passive_data = _load_json(param_input_file)
@@ -257,7 +242,6 @@ def _load_passive_rows() -> Dict[str, dict]:
         if isinstance(row, dict):
             out[str(passive_id)] = row
     return out
-
 
 @lru_cache(maxsize=1)
 def _build_name_to_id_map() -> Dict[str, str]:
@@ -289,14 +273,12 @@ def _build_name_to_id_map() -> Dict[str, str]:
 
     return out
 
-
 def resolve_passive_skill_id_from_name(name: str) -> str:
     name = normalize_title(name)
     if not name:
         return ""
     m = _build_name_to_id_map()
     return m.get(name.casefold(), "")
-
 
 def build_passive_skill_model_by_id(passive_skill_id: str) -> Optional[PassiveSkillModel]:
     passive_skill_id = str(passive_skill_id or "").strip()
@@ -352,13 +334,11 @@ def build_passive_skill_model_by_id(passive_skill_id: str) -> Optional[PassiveSk
 
     return model
 
-
 def build_passive_skill_model_from_name(name: str) -> Optional[PassiveSkillModel]:
     passive_id = resolve_passive_skill_id_from_name(name)
     if not passive_id:
         return None
     return build_passive_skill_model_by_id(passive_id)
-
 
 def build_all_passive_skill_models() -> List[PassiveSkillModel]:
     passive_rows = _load_passive_rows()

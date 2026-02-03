@@ -1,19 +1,14 @@
 import os
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Tuple
-
 from utils.english_text_utils import EnglishText
 from builders.item_page_summary import get_item_page_blurb
-
-from builders.item_infobox import (
-    build_item_infobox_model_for_page,
-    resolve_item_id_from_english_name,
-)
-
-from exports.export_item_infoboxes import render_item_infobox
-
+from builders.item_infobox import (build_item_infobox_model_for_page, resolve_item_id_from_english_name,)
 from builders.item_recipe import build_item_recipe_model_by_product_id
+from exports.export_item_infoboxes import render_item_infobox
 from exports.export_item_recipes import render_crafting_recipe
+
+
 
 @dataclass(frozen=True)
 class ItemPageOptions:
@@ -21,14 +16,12 @@ class ItemPageOptions:
     include_navbox: bool = True
     include_placeholders: bool = True
 
-
 def _normalize_title(s: str) -> str:
     s = str(s or "").strip()
     return " ".join(s.split())
 
 def _is_pal_bounty_token(item_type: str) -> bool:
     return (item_type or "").strip() == "Pal Bounty Token"
-
 
 def _navbox_for_item(*, item_type: str, subtype: str) -> str:
     t = (item_type or "").strip()
@@ -49,7 +42,6 @@ def _navbox_for_item(*, item_type: str, subtype: str) -> str:
         return "{{Navbox Skill Fruit}}"
 
     return ""
-
 
 def build_item_page_sections(
     item_id: str,
@@ -213,7 +205,6 @@ def build_item_page_wikitext(
 
     return "\n".join(out).rstrip() + "\n"
 
-
 def resolve_item_id_and_title(user_title: str, *, en: Optional[EnglishText] = None) -> Tuple[Optional[str], str]:
     """
     Returns (item_id, final_page_title)
@@ -239,7 +230,6 @@ def resolve_item_id_and_title(user_title: str, *, en: Optional[EnglishText] = No
 
     display_name = _normalize_title(model.get("display_name") or raw_title)
     return raw_title, display_name
-
 
 def build_item_page_from_name_or_id(
     name_or_id: str,

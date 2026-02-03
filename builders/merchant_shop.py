@@ -1,15 +1,15 @@
 import os
 import sys
 import json
-from typing import Any, Dict, List, Optional, TypedDict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Any, Dict, List, Optional, TypedDict
 from utils.english_text_utils import EnglishText
 from utils.json_datatable_utils import extract_datatable_rows
 
-
+#Paths
 itemshop_lottery_input_file = os.path.join(constants.INPUT_DIRECTORY, "ItemShop", "DT_ItemShopLotteryData.json")
 itemshop_lottery_common_input_file = os.path.join(constants.INPUT_DIRECTORY, "ItemShop", "DT_ItemShopLotteryData_Common.json")
 
@@ -18,6 +18,7 @@ itemshop_create_common_input_file = os.path.join(constants.INPUT_DIRECTORY, "Ite
 
 itemshop_setting_input_file = os.path.join(constants.INPUT_DIRECTORY, "ItemShop", "DT_ItemShopSettingData.json")
 itemshop_setting_common_input_file = os.path.join(constants.INPUT_DIRECTORY, "ItemShop", "DT_ItemShopSettingData_Common.json")
+
 
 
 class MerchantItemModel(TypedDict, total=False):
@@ -32,7 +33,6 @@ class MerchantItemModel(TypedDict, total=False):
     productType: str
     stock: int
 
-
 class MerchantShopGroupModel(TypedDict, total=False):
     shopGroup: str
     groupWeight: int
@@ -40,22 +40,18 @@ class MerchantShopGroupModel(TypedDict, total=False):
     currencyId: str
     items: List[MerchantItemModel]
 
-
 class MerchantShopModel(TypedDict, total=False):
     merchantKey: str
     merchantName: str
     shopGroups: List[MerchantShopGroupModel]
 
-
 def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-
 def _load_rows(path: str) -> Dict[str, Dict[str, Any]]:
     raw = _load_json(path)
     return extract_datatable_rows(raw, source=os.path.basename(path)) or {}
-
 
 def _to_int(v: Any, default: int = 0) -> int:
     try:
@@ -63,17 +59,14 @@ def _to_int(v: Any, default: int = 0) -> int:
     except (TypeError, ValueError):
         return default
 
-
 def _trim(v: Any) -> str:
     return str(v or "").strip()
-
 
 def _english_item_name(en: EnglishText, item_id: str) -> str:
     item_id = _trim(item_id)
     if not item_id:
         return ""
     return en.get_item_name(item_id) or item_id
-
 
 def _merge_rows(*paths: str) -> Dict[str, Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
@@ -85,7 +78,6 @@ def _merge_rows(*paths: str) -> Dict[str, Dict[str, Any]]:
             if isinstance(k, str) and isinstance(v, dict):
                 out[k] = v
     return out
-
 
 def build_all_merchant_shop_models(
     *,

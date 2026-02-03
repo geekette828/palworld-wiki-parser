@@ -1,18 +1,19 @@
 import os
 import sys
 import json
-from typing import Any, List, Tuple, TypedDict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Any, List, Tuple, TypedDict
 from config.name_map import ELEMENT_NAME_MAP
 from utils.json_datatable_utils import extract_datatable_rows
 from utils.english_text_utils import EnglishText
 
+#Paths
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
 
-
+#Mapping
 EGG_SIZE_BY_RARITY = [
     (1, 4, "Regular"),
     (5, 7, "Large"),
@@ -43,7 +44,6 @@ class PalBreedingModel(TypedDict, total=False):
 
     unique_combos: str
 
-
 def egg_size_from_rarity(rarity: Any) -> str:
     if rarity is None:
         return ""
@@ -61,7 +61,6 @@ def egg_size_from_rarity(rarity: Any) -> str:
 
     return ""
 
-
 def egg_type_from_element(element: Any) -> str:
     if not element:
         return ""
@@ -72,14 +71,12 @@ def egg_type_from_element(element: Any) -> str:
 
     return EGG_ELEMENT_MAP.get(e, "")
 
-
 def normalize_element(element: Any) -> str:
     if not element:
         return ""
 
     e = str(element).strip()
     return ELEMENT_NAME_MAP.get(e, e)
-
 
 def after_double_colon(v: Any) -> str:
     if v is None:
@@ -88,7 +85,6 @@ def after_double_colon(v: Any) -> str:
     if "::" in s:
         return s.split("::", 1)[1]
     return s
-
 
 def build_breeding_egg(row: dict) -> str:
     if not isinstance(row, dict):
@@ -108,14 +104,12 @@ def build_breeding_egg(row: dict) -> str:
 
     return f"{size} {egg_type} Egg"
 
-
 def fmt(v: Any) -> str:
     if v is None:
         return ""
     if isinstance(v, float):
         return repr(v)
     return str(v)
-
 
 def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
     if zukan_index is None:
@@ -134,7 +128,6 @@ def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
     if suf == "":
         return base
     return f"{base}{suf}"
-
 
 def build_pal_order(param_rows: dict) -> List[str]:
     pal_order = []
@@ -158,7 +151,6 @@ def build_pal_order(param_rows: dict) -> List[str]:
 
     pal_order.sort(key=lambda x: (int(x[0][:3]), x[0][3:]))
     return [base_id for _, base_id in pal_order]
-
 
 def build_pal_breeding_model_by_id(
     base_id: str,
@@ -185,7 +177,6 @@ def build_pal_breeding_model_by_id(
     }
 
     return model
-
 
 def build_all_pal_breeding_models() -> List[Tuple[str, PalBreedingModel]]:
     with open(param_input_file, "r", encoding="utf-8") as f:

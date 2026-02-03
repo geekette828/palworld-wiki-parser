@@ -2,22 +2,26 @@ import os
 import re
 import sys
 import json
-from typing import Any, Dict, Optional, Tuple, List, TypedDict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Any, Dict, Optional, Tuple, List, TypedDict
 from config.name_map import ELEMENT_NAME_MAP, ACTIVE_SKILL_STATUS_EFFECT_MAP
 from utils.english_text_utils import EnglishText, clean_english_text
 from utils.json_datatable_utils import extract_datatable_rows
+
+#Paths
 waza_input_file = os.path.join(constants.INPUT_DIRECTORY, "Waza", "DT_WazaDataTable.json")
 item_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemDataTable.json")
 en_name_file = constants.EN_SKILL_NAME_FILE
 en_description_file = constants.EN_SKILL_DESC_FILE
 
+
+_CHARACTERNAME_TAG_RE = re.compile(r"<characterName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
+
 _CACHED_WAZA_ROWS: Optional[Dict[str, Dict[str, Any]]] = None
 _CACHED_SKILL_IDS_WITH_SKILLCARDS: Optional[set[str]] = None
-
 
 class ActiveSkillInfoboxModel(TypedDict, total=False):
     skill_id: str
@@ -32,10 +36,6 @@ class ActiveSkillInfoboxModel(TypedDict, total=False):
     status2: str
     chance2: str
     fruit: bool
-
-
-_CHARACTERNAME_TAG_RE = re.compile(r"<characterName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
-
 
 def _replace_charactername_tags(text: str, english: EnglishText) -> str:
     s = str(text or "")

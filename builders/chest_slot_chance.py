@@ -1,17 +1,19 @@
 import os
 import sys
 import json
-from typing import Any, Dict, List, Tuple
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Any, Dict
 from utils.json_datatable_utils import extract_datatable_rows
 
-
+#Paths
 field_lottery_input_file = os.path.join(constants.INPUT_DIRECTORY, "Common", "DT_FieldLotteryNameDataTable.json")
 item_lottery_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemLotteryDataTable.json")
 dungeon_item_lottery_input_file = os.path.join(constants.INPUT_DIRECTORY, "Dungeon", "DT_DungeonItemLotteryDataTable.json")
+
+
 
 def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:

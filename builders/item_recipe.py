@@ -10,9 +10,10 @@ from utils.english_text_utils import EnglishText
 from utils.json_datatable_utils import extract_datatable_rows
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
-
+#Paths
 recipe_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemRecipeDataTable.json")
 item_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemDataTable.json")
+
 
 _VARIANT_SUFFIX_RE = re.compile(r"^(?P<base>.+)_(?P<num>[2-5])$")
 _SCHEMATIC_SUFFIX_RE = re.compile(r"\s+\d+$")
@@ -37,11 +38,9 @@ class RecipeRow(TypedDict, total=False):
     Material5_Id: str
     Material5_Count: Any
 
-
 class CraftingRecipeVariant(TypedDict, total=False):
     workload: str
     ingredients: str
-
 
 class CraftingRecipeModel(TypedDict, total=False):
     product: str
@@ -52,12 +51,10 @@ class CraftingRecipeModel(TypedDict, total=False):
     schematic: str
     variants: Dict[int, CraftingRecipeVariant]  # {2: {"workload": "...", "ingredients": "..."}, ...}
 
-
 class CraftingRecipeEntry(TypedDict, total=False):
     product_id: str
     display_name: str
     model: CraftingRecipeModel
-
 
 def _normalize_schematic_name(name: str) -> str:
     name = (name or "").strip()
@@ -81,15 +78,12 @@ def _load_json(path: str) -> Any:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-
 def _trim(v: Any) -> str:
     return str(v or "").strip()
-
 
 def _is_none_text(v: Any) -> bool:
     s = _trim(v)
     return s == "" or s.lower() == "none"
-
 
 def _format_number(v: Any) -> str:
     if v is None:
@@ -103,7 +97,6 @@ def _format_number(v: Any) -> str:
         return str(int(round(n)))
     return str(n).rstrip("0").rstrip(".")
 
-
 def _format_workload(v: Any) -> str:
     if v is None:
         return ""
@@ -116,18 +109,15 @@ def _format_workload(v: Any) -> str:
         return str(int(round(n)))
     return str(n).rstrip("0").rstrip(".")
 
-
 def _english_item_name(en: EnglishText, item_id: str) -> str:
     item_id = _trim(item_id)
     if not item_id or _is_none_text(item_id):
         return ""
     return en.get_item_name(item_id) or item_id
 
-
 def _load_item_rows(*, input_path: str = item_input_file) -> Dict[str, Dict[str, Any]]:
     raw = _load_json(input_path)
     return extract_datatable_rows(raw, source=os.path.basename(input_path)) or {}
-
 
 def _find_variant_item_ids_for_base(
     *,
@@ -175,7 +165,6 @@ def _find_variant_item_ids_for_base(
 
     return out
 
-
 def _build_ingredients(en: EnglishText, row: Dict[str, Any]) -> str:
     parts: List[str] = []
 
@@ -193,7 +182,6 @@ def _build_ingredients(en: EnglishText, row: Dict[str, Any]) -> str:
 
     return "; ".join(parts)
 
-
 def _variant_info_from_product_id(product_id: str) -> Tuple[str, Optional[int]]:
     """
     Returns (base_id, variant_num).
@@ -204,7 +192,6 @@ def _variant_info_from_product_id(product_id: str) -> Tuple[str, Optional[int]]:
     if not m:
         return product_id, None
     return m.group("base"), int(m.group("num"))
-
 
 def _list_from_any(v: Any) -> List[str]:
     if v is None:
@@ -217,7 +204,6 @@ def _list_from_any(v: Any) -> List[str]:
                 out.append(s)
         return out
     return []
-
 
 def _true_variant_info_from_product_id(
     product_id: str,
@@ -253,7 +239,6 @@ def _true_variant_info_from_product_id(
 
     return product_id, None
 
-
 def _index_rows_by_product_id(rows: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """
     DT export row name is not guaranteed to equal Product_Id,
@@ -270,11 +255,9 @@ def _index_rows_by_product_id(rows: Dict[str, Dict[str, Any]]) -> Dict[str, Dict
             by_pid[pid] = row
     return by_pid
 
-
 def _load_recipe_rows(*, input_path: str = recipe_input_file) -> Dict[str, Dict[str, Any]]:
     raw = _load_json(input_path)
     return extract_datatable_rows(raw, source=os.path.basename(input_path)) or {}
-
 
 def _build_model_for_base_and_variants(
     *,
@@ -319,7 +302,6 @@ def _build_model_for_base_and_variants(
             }
 
     return model
-
 
 def build_item_recipe_model_by_product_id(
     product_id: str,
@@ -386,7 +368,6 @@ def build_item_recipe_model_by_product_id(
         en=en,
     )
 
-
 def build_all_item_recipe_models(*, input_path: str = recipe_input_file) -> List[CraftingRecipeEntry]:
     """Build all crafting recipe models (no wikitext)."""
     en = EnglishText()
@@ -423,5 +404,3 @@ def build_all_item_recipe_models(*, input_path: str = recipe_input_file) -> List
         })
 
     return out
-
-

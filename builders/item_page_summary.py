@@ -1,7 +1,4 @@
-# builders/item_page_summary.py
-
 from typing import Optional
-
 
 TYPE_SUMMARIES = {
     "Ammo": (
@@ -68,7 +65,6 @@ SUBTYPE_SUMMARIES = {
         "They are typically obtained from treasure chests, bosses, vendors, or other loot sources, and are intended to let the player subtly optimize Pal performance without changing gameplay flow or requiring direct interaction. "
     ),
 }
-
 
 def get_item_page_blurb(item_type: Optional[str], item_subtype: Optional[str]) -> Optional[str]:
     if item_subtype and item_subtype in SUBTYPE_SUMMARIES:

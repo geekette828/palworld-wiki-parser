@@ -1,27 +1,21 @@
 import os
 import sys
 import json
-from typing import Any, Dict, List, Tuple, Optional
-from collections import defaultdict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Any, Dict, List, Tuple, Optional
+from collections import defaultdict
 from utils.json_datatable_utils import extract_datatable_rows
 from utils.english_text_utils import EnglishText
 
-
+#Paths
 FISHING_INPUT_DIR = os.path.join(constants.INPUT_DIRECTORY, "Fishing")
+FISHING_SPOT_LOTTERY_PATH = os.path.join(FISHING_INPUT_DIR, "DT_PalFishingSpotLotteryDataTable.json")
+FISH_SHADOW_PATH = os.path.join(FISHING_INPUT_DIR, "DT_PalFishShadowDataTable.json")
+FISH_POND_LOTTERY_PATH = os.path.join(FISHING_INPUT_DIR, "DT_PalFishPondLotteryDataTable.json")
 
-FISHING_SPOT_LOTTERY_PATH = os.path.join(
-    FISHING_INPUT_DIR, "DT_PalFishingSpotLotteryDataTable.json"
-)
-FISH_SHADOW_PATH = os.path.join(
-    FISHING_INPUT_DIR, "DT_PalFishShadowDataTable.json"
-)
-FISH_POND_LOTTERY_PATH = os.path.join(
-    FISHING_INPUT_DIR, "DT_PalFishPondLotteryDataTable.json"
-)
 
 
 def load_rows(path: str, *, source: str) -> dict:
