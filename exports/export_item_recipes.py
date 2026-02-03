@@ -1,16 +1,17 @@
 import os
 import sys
-from typing import List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import List
 from utils.console_utils import force_utf8_stdout
 from builders.item_recipe import build_all_item_recipe_models, CraftingRecipeModel
-
 force_utf8_stdout()
 
+#Paths
 output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "item_recipes.txt")
+
 
 
 def write_text(path: str, text: str) -> None:

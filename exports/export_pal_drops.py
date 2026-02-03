@@ -1,16 +1,17 @@
 import os
 import sys
-from typing import List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import List
 from utils.console_utils import force_utf8_stdout
 from builders.pal_drops import build_all_pal_drops_models, PalDropsModel
-
 force_utf8_stdout()
 
+#Paths
 output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "pal_drops.txt")
+
 
 
 def write_text(path: str, text: str) -> None:
@@ -19,7 +20,6 @@ def write_text(path: str, text: str) -> None:
         os.makedirs(directory, exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
-
 
 def render_pal_drops(model: PalDropsModel) -> str:
     if not model:

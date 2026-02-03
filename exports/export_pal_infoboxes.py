@@ -1,21 +1,17 @@
 import os
 import sys
-from typing import List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import List
 from utils.console_utils import force_utf8_stdout
-from builders.pal_infobox import (
-    build_all_pal_infobox_models,
-    PalInfoboxModel,
-    STATS_MAP,
-    ALPHA_ELIGIBLE_PARAMS,
-)
-
+from builders.pal_infobox import (build_all_pal_infobox_models, PalInfoboxModel, STATS_MAP, ALPHA_ELIGIBLE_PARAMS)
 force_utf8_stdout()
 
+#Paths
 output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "pal_infobox.txt")
+
 
 
 def write_text(path: str, text: str) -> None:
@@ -25,7 +21,6 @@ def write_text(path: str, text: str) -> None:
 
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
-
 
 def render_pal_infobox(model: PalInfoboxModel, *, include_header: bool = True) -> str:
     if not model:

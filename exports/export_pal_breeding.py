@@ -1,16 +1,17 @@
 import os
 import sys
-from typing import List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import List
 from utils.console_utils import force_utf8_stdout
 from builders.pal_breeding import build_all_pal_breeding_models, PalBreedingModel
-
 force_utf8_stdout()
 
+#Paths
 output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "pal_breeding.txt")
+
 
 
 def write_text(path: str, text: str) -> None:

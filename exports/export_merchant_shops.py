@@ -1,10 +1,10 @@
 import os
 import sys
-from typing import Dict, List, Optional
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Dict, List, Optional
 from utils.console_utils import force_utf8_stdout
 from builders.merchant_shop import (
     build_all_merchant_shop_models,
@@ -13,6 +13,7 @@ from builders.merchant_shop import (
 )
 force_utf8_stdout()
 
+#Paths
 output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "merchant_shops.txt",)
 
 

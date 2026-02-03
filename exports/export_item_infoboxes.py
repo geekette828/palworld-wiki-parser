@@ -1,16 +1,17 @@
 import os
 import sys
-from typing import List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import List
 from utils.console_utils import force_utf8_stdout
 from builders.item_infobox import build_all_item_infobox_models, ItemInfoboxModel
-
 force_utf8_stdout()
 
+#Paths
 output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "item_infobox.txt")
+
 
 
 def write_text(path: str, text: str) -> None:
@@ -21,12 +22,10 @@ def write_text(path: str, text: str) -> None:
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
 
-
 def _trim(v) -> str:
     if v is None:
         return ""
     return str(v).strip()
-
 
 def render_item_infobox(model: ItemInfoboxModel, *, include_heading: bool = True) -> str:
     """

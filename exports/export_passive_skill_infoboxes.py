@@ -6,10 +6,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from config import constants
 from utils.console_utils import force_utf8_stdout
 from builders.passive_skill_infobox import build_all_passive_skill_models, PassiveSkillModel
-
 force_utf8_stdout()
 
+#Paths
 output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "passive_skill_infobox.txt")
+
 
 
 def write_text(path: str, text: str) -> None:

@@ -7,10 +7,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from config import constants
 from utils.console_utils import force_utf8_stdout
 from builders.chest_slot_chance import build_chest_slot_chance_models
-
 force_utf8_stdout()
 
+#Paths
 output_directory = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted")
+
 
 
 def write_text(path: str, text: str) -> None:

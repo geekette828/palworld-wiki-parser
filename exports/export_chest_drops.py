@@ -1,16 +1,17 @@
 import os
 import sys
-from typing import Dict, List
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from typing import Dict, List
 from utils.console_utils import force_utf8_stdout
 from builders.chest_drop import build_all_chest_drop_export_models, ChestDropGroup
-
 force_utf8_stdout()
 
+#Paths
 output_directory = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted")
+
 
 
 def write_text(path: str, text: str) -> None:

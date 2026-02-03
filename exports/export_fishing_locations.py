@@ -4,21 +4,21 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
+from builders.fishing_location import build_all_fishing_location_models
 from utils.console_utils import force_utf8_stdout
 from typing import List, Optional
-
 force_utf8_stdout()
 
+#Paths
 output_directory = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "Fishing")
-
 output_file_detailed = os.path.join(output_directory, "Pal_Fishing_Locations.txt")
 output_file_deduped = os.path.join(output_directory, "Pal_Fishing_Locations_Deduped.txt")
 output_file_wikiformat = os.path.join(output_directory, "fishing_wikiformat.txt")
 
+#Config
 INCLUDE_WEIGHTS = True
 INCLUDE_PERCENT = True
 
-from builders.fishing_location import build_all_fishing_location_models
 
 
 def write_text(path: str, text: str) -> None:
