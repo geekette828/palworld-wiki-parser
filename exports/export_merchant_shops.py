@@ -6,15 +6,27 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from config import constants
 from typing import Dict, List, Optional
 from utils.console_utils import force_utf8_stdout
-from builders.merchant_shop import (
-    build_all_merchant_shop_models,
-    MerchantItemModel,
-    MerchantShopModel,
-)
+from builders.merchant_shop import (build_all_merchant_shop_models, MerchantItemModel, MerchantShopModel)
 force_utf8_stdout()
 
-#Paths
-output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "merchant_shops.txt",)
+# Paths
+output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "merchant_shops.txt")
+
+
+# Merchant display name overrides
+MERCHANT_NAME_OVERRIDES: Dict[str, str] = {
+    "ArenaShop1": "Arena Merchant",
+    "MedalShop1": "Medal Merchant",
+    "BountyShop1": "Vigilante Bounty Officer",
+    "WanderShopTable": "Wandering Merchant",
+    "CaravanShop1": "Caravan Leader",
+    "CaravanShop2": "Caravan Leader",
+    "CaravanShop3": "Caravan Leader",
+    "DesertShopTable": "Duneshelter Red Shirt Merchant",
+    "DesertShopTable2": "Duneshelter Green Shirt Merchant",
+    "VolcanoShopTable": "Fisherman's Point Red Shirt Merchant",
+    "VolcanoShopTable2": "Fisherman's Point Green Shirt Merchant",
+}
 
 
 
@@ -44,31 +56,42 @@ def _render_merchant_template(
     lines: List[str] = []
 
     lines.append("{{Merchant|" + merchant_name)
-    lines.append(f"|shopGroup = {shop_group}")
-    lines.append(f"|shopGroupWeight = {group_weight}")
+    lines.append(f"|shop_group = {shop_group}")
+    lines.append(f"|sg_weight = {group_weight}")
 
     for idx, item in enumerate(items, start=1):
         item_name = _trim(item.get("itemName"))
         cost_amount = _to_int(item.get("costAmount"), default=0)
         currency = _trim(item.get("currency"))
 
-        lines.append(f" |{idx}_itemName = {item_name}")
-        lines.append(f"  |{idx}_costAmount = {cost_amount}")
-        lines.append(f"  |{idx}_currency = {currency}")
+        lines.append(f" |{idx}_item_name = {item_name}")
 
         item_weight = item.get("itemWeight")
         if item_weight is not None:
-            lines.append(f"  |{idx}_itemWeight = {int(item_weight)}")
+            lines.append(f"  |{idx}_item_weight = {int(item_weight)}")
+        
+        lines.append(f"  |{idx}_cost_amount = {cost_amount}")
+        lines.append(f"  |{idx}_currency = {currency}")
+
+        min_qty = _to_int(item.get("minQty"), default=1)
+        max_qty = _to_int(item.get("maxQty"), default=min_qty)
+        # Only emit quantities if they aren't the trivial 1–1 case
+        if not (min_qty == 1 and max_qty == 1):
+            lines.append(f"  |{idx}_min_qty = {min_qty}")
+            lines.append(f"  |{idx}_max_qty = {max_qty}")
 
     lines.append("}}")
     return "\n".join(lines)
-
 
 def build_merchant_shops_wikitext(
     *,
     merchant_name_overrides: Optional[Dict[str, str]] = None,
     include_blank_line: bool = True,
 ) -> str:
+    # If caller doesn't provide overrides, use the shared map at the top of the script.
+    if merchant_name_overrides is None:
+        merchant_name_overrides = MERCHANT_NAME_OVERRIDES
+
     model = build_all_merchant_shop_models(
         merchant_name_overrides=merchant_name_overrides,
     )
@@ -105,7 +128,10 @@ def build_merchant_shops_wikitext(
 def main() -> None:
     print("🔄 Building merchant shop export text...")
 
-    text = build_merchant_shops_wikitext(include_blank_line=True)
+    text = build_merchant_shops_wikitext(
+        include_blank_line=True,
+        merchant_name_overrides=MERCHANT_NAME_OVERRIDES,
+    )
 
     print(f"🔄 Writing output file: {output_file}")
     write_text(output_file, text)

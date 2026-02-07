@@ -10,6 +10,8 @@ from utils.english_text_utils import EnglishText
 from utils.json_datatable_utils import extract_datatable_rows
 
 #Paths
+item_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemDataTable.json")
+
 itemshop_lottery_input_file = os.path.join(constants.INPUT_DIRECTORY, "ItemShop", "DT_ItemShopLotteryData.json")
 itemshop_lottery_common_input_file = os.path.join(constants.INPUT_DIRECTORY, "ItemShop", "DT_ItemShopLotteryData_Common.json")
 
@@ -79,6 +81,36 @@ def _merge_rows(*paths: str) -> Dict[str, Dict[str, Any]]:
                 out[k] = v
     return out
 
+def _to_float(v: Any, default: float = 0.0) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+def _load_item_price_map() -> Dict[str, int]:
+    """
+    Map: { "IronOre": 800, ... } from DT_ItemDataTable.json
+    """
+    if not os.path.exists(item_input_file):
+        return {}
+
+    rows = _load_rows(item_input_file)
+    out: Dict[str, int] = {}
+
+    for item_id, row in rows.items():
+        if not isinstance(item_id, str) or not isinstance(row, dict):
+            continue
+
+        # Price appears to be numeric; accept float/int/string
+        price = _to_int(row.get("Price"), default=0)
+        if price == 0:
+            # sometimes datatables store as float
+            price = _to_int(_to_float(row.get("Price"), default=0.0), default=0)
+
+        out[item_id] = price
+
+    return out
+
 def build_all_merchant_shop_models(
     *,
     merchant_name_overrides: Optional[Dict[str, str]] = None,
@@ -113,6 +145,7 @@ def build_all_merchant_shop_models(
     merchant_name_overrides = merchant_name_overrides or {}
 
     en = EnglishText()
+    item_price_map = _load_item_price_map()
 
     lottery_rows = _merge_rows(
         itemshop_lottery_common_input_file,
@@ -162,6 +195,10 @@ def build_all_merchant_shop_models(
                 currency_id = _trim(setting.get("CurrencyItemID"))
                 currency_name = _english_item_name(en, currency_id)
 
+            # If the setting table doesn't specify a currency item, it's the default money.
+            if not currency_name:
+                currency_name = "Gold Coin"
+
             create = create_rows.get(shop_group)
             items: List[MerchantItemModel] = []
 
@@ -178,19 +215,52 @@ def build_all_merchant_shop_models(
 
                         item_name = _english_item_name(en, item_id)
                         override_price = _to_int(prod.get("OverridePrice"), default=0)
+
+                        # Quantity: prefer explicit min/max if present; otherwise fall back to ProductNum.
+                        # (We don't know the exact field names yet, so we check several common ones.)
+                        min_qty = _to_int(
+                            prod.get("MinNum")
+                            or prod.get("MinQty")
+                            or prod.get("MinProductNum")
+                            or prod.get("MinCount"),
+                            default=0,
+                        )
+
+                        max_qty = _to_int(
+                            prod.get("MaxNum")
+                            or prod.get("MaxQty")
+                            or prod.get("MaxProductNum")
+                            or prod.get("MaxCount"),
+                            default=0,
+                        )
+
                         product_num = _to_int(prod.get("ProductNum"), default=1)
+
+                        if min_qty <= 0 and max_qty <= 0:
+                            min_qty = product_num
+                            max_qty = product_num
+                        elif max_qty <= 0:
+                            max_qty = min_qty
+                        elif min_qty <= 0:
+                            min_qty = max_qty
+
                         stock = _to_int(prod.get("Stock"), default=0)
                         product_type = _trim(prod.get("ProductType"))
+
+                        # Cost: OverridePrice of 0 generally means "use item default price" for money shops.
+                        cost_amount = override_price
+                        if cost_amount <= 0 and currency_name == "Gold Coin":
+                            cost_amount = _to_int(item_price_map.get(item_id), default=0)
 
                         items.append(MerchantItemModel(
                             itemName=item_name,
                             itemId=item_id,
                             itemWeight=None,
-                            costAmount=override_price,
+                            costAmount=cost_amount,
                             currency=currency_name,
                             currencyId=currency_id,
-                            minQty=product_num,
-                            maxQty=product_num,
+                            minQty=min_qty,
+                            maxQty=max_qty,
                             productType=product_type,
                             stock=stock,
                         ))
