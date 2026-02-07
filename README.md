@@ -30,6 +30,8 @@ Palworld Parser/
 │   ├── export_active_skill_infoboxes.py    → Outputs all Active Skill infoboxes
 │   ├── export_chest_drops.py               → Outputs several .txt files on treasure chest drops
 │   ├── export_chest_slot_chance.py         → Outputs a json file that can be pasted into Data:ChestSlotChance.json
+│   ├── export_entity_location_map.py       → Outputs a .txt file for use with Module:Entity Location Map
+│   ├── export_entity_spawn_datamap.py      → Outputs a json file for the Data Maps
 │   ├── export_fishing_locations.py
 │   ├── export_item_infoboxes.py            → Outputs all item infoboxes
 │   ├── export_item_recipes.py              → Outputs all item crafting recipes
@@ -66,9 +68,11 @@ Palworld Parser/
 │   │   └── passive_skill_page_audit.py
 │
 ├── utils/
+│   ├── compare_utils.py
 │   ├── console_utils.py
 │   ├── english_text_utils.py
 │   ├── json_datatable_utils.py
+│   ├── location_utils.py
 │   └── name_utils.py
 │
 ├── .gitignore

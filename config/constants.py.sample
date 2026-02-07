@@ -26,6 +26,8 @@ EN_BUILD_OBJECT_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_MapObjectNameText_Common.js
 EN_TECH_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_TechnologyNameText_Common.json"
 EN_STATUS_EFFECT_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_StatusEffectNameText_Common.json"
 
+EN_HUMAN_NAME_FILE = f"{EN_TEXT_DIRECTORY}/DT_HumanNameText_Common.json"
+
 PWB_SETTINGS = {
     "BATCH_SIZE": 50,
     "SLEEP_INTERVAL": 8,
