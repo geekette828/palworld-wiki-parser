@@ -11,8 +11,7 @@ from palworld_data_load import (
     load_datatable_json_tree,
 )
 from palworld_text_util import (
-    build_text_table,
-    get_string,
+    TextTable
 )
 # Not dealing with configs and path inheritance
 #from config.name_map import RARITY_NAME_MAP
@@ -26,7 +25,7 @@ mega_dict = load_datatable_json_tree(root_input_dir+r"/DataTable", AsUEObj=True)
 lionlocal = l10n_localization_importer(root_input_dir+r"/L10N")
 
 # build alltext table.
-alltext = build_text_table(lionlocal["en"])
+alltext = TextTable(lionlocal["en"])
 
 RARITY_NAME_MAP = {
     0: "Common",
@@ -54,7 +53,7 @@ def _resolve_passive_skill_list(alltext, row: UnrealObject) -> str:
     for pid in ids:
         if not pid or pid.lower() == "none":
             continue
-        names.append(get_string(alltext, "PASSIVE", pid))
+        names.append(alltext.get_string("PASSIVE", pid))
 
     return names
 
@@ -190,7 +189,7 @@ def create_recipe(key: str, value: UnrealObject, recipes: Dict[str, UnrealObject
             matcount = recipe[f"Material{i}_Count"]
             print(matid)
             if matid != "None" and matcount > 0:
-                name = get_string(alltext, "ITEM_NAME", matid)
+                name = alltext.get_string("ITEM_NAME", matid)
                 if name and name != "en Text":
                     materials.append(f"{name}*{matcount}")
                 else:
@@ -206,8 +205,8 @@ def create_recipe(key: str, value: UnrealObject, recipes: Dict[str, UnrealObject
             "craft_exp_rate": craft_exp,
         }
         if required_blueprint != "None":
-            newrecipe["required_schematic"] = get_string(
-                alltext, "ITEM_NAME", required_blueprint
+            newrecipe["required_schematic"] = alltext.get_string(
+               "ITEM_NAME", required_blueprint
             )
 
     return newrecipe
@@ -240,7 +239,7 @@ def handle_item_types(typea, typeb):
         "Key Items",
     ]
     common_itemtype_keypre = "COMMON_ITEMTYPE_A"
-    typev = get_string(alltext, common_itemtype_keypre, typea)
+    typev = alltext.get_string(common_itemtype_keypre, typea)
     print(typev, typea, typeb)
     filter_type = ""
     wiki_type = ""
@@ -411,21 +410,21 @@ def build_full_item_data_json():
         typenameb = value_object.TypeB.split("::")[-1]
 
         keypre = "COMMON_ITEMTYPE_A"
-        type = get_string(alltext, keypre, typename)
+        type = alltext.get_string(keypre, typename)
 
         if value_object.bLegalInGame is False:
             continue
 
         # Name and description
-        name = get_string(alltext, "ITEM_NAME", key)
-        desc = get_string(alltext, "ITEM_DESC", key) or ""
+        name = alltext.get_string("ITEM_NAME", key)
+        desc = alltext.get_string("ITEM_DESC", key) or ""
         if value_object.OverrideName != "None":
-            name = get_string(alltext, "", value_object.OverrideName)
+            name = alltext.get_string( "", value_object.OverrideName)
 
         if value_object.OverrideDescription != "None":
             print("overriding description...")
             print(name, desc, "target", value_object.OverrideDescription)
-            desc = get_string(alltext, "", value_object.OverrideDescription.strip())
+            desc = alltext.get_string( "", value_object.OverrideDescription.strip())
         if desc == None:
             print(f"at {key} ({name}), this item has no valid description!")
             # input()

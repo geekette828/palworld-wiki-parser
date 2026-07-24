@@ -12,8 +12,7 @@ from palworld_data_load import (
     load_datatable_json_tree,
 )
 from palworld_text_util import (
-    build_text_table,
-    get_string,
+    TextTable
 )
 
 # Define root input dir
@@ -25,7 +24,7 @@ mega_dict = load_datatable_json_tree(root_input_dir+"/DataTable", AsUEObj=True)
 lionlocal = l10n_localization_importer(root_input_dir+"/L10N")
 
 # build alltext table.
-alltext = build_text_table(lionlocal["en"])
+alltext = TextTable(lionlocal["en"])
 
 
 # print(organized.keys())
@@ -61,16 +60,16 @@ def build_pal_labor_settings(val, alltext):
             print(mrank)
             multiwork.append(
                 {
-                    "suitability": get_string(
-                        alltext, "COMMON_WORK_SUITABILITY", mworksuit
+                    "suitability": alltext.get_string(
+                         "COMMON_WORK_SUITABILITY", mworksuit
                     ),
-                    "work_type": get_string(alltext, "COMMON_WORK_TYPE", mworktype),
+                    "work_type": alltext.get_string("COMMON_WORK_TYPE", mworktype),
                     "rank_needed": mrank,
                 }
             )
             # input()
     work_settings = {
-        "suitability": get_string(alltext, "COMMON_WORK_SUITABILITY", typeuidisplay),
+        "suitability": alltext.get_string( "COMMON_WORK_SUITABILITY", typeuidisplay),
         "rank_needed": workrank,
         "can_player_work": can_player_work,
         "can_basecamp_worker_work": can_base_camp_worker_work,
@@ -82,7 +81,7 @@ def build_pal_labor_settings(val, alltext):
     if maxsize != "None":
         work_settings["max_pal_size"] = maxsize
     if work_type != "None":
-        work_settings["work_type"] = get_string(alltext, "COMMON_WORK_TYPE", work_type)
+        work_settings["work_type"] = alltext.get_string( "COMMON_WORK_TYPE", work_type)
         # work_settings['work_action_type']=work_action_type
     if max_workers:
         work_settings["max_workers"] = max_workers
@@ -143,14 +142,14 @@ def build_full_building_data_json():
         else:
             mapobject = mapobjects[key]
 
-        cata = get_string(alltext, "CATEGORY_TYPE_A", typename)
-        catb = get_string(alltext, "CATEGORY_TYPE_B", typenameb)
+        cata = alltext.get_string( "CATEGORY_TYPE_A", typename)
+        catb = alltext.get_string( "CATEGORY_TYPE_B", typenameb)
 
-        catui = get_string(alltext, "CATEGORY_TYPE_UI", typeuidisplay)
+        catui = alltext.get_string( "CATEGORY_TYPE_UI", typeuidisplay)
         print(k, typename, typenameb, typeuidisplay, cata, catb, catui)
 
-        name = get_string(alltext, "MAPOBJECT_NAME", k)
-        desc = get_string(alltext, "BUILDOBJECT_DESC", k)
+        name = alltext.get_string( "MAPOBJECT_NAME", k)
+        desc = alltext.get_string( "BUILDOBJECT_DESC", k)
 
         output_building_data = {
             "name": name,
@@ -190,9 +189,9 @@ def build_full_building_data_json():
                 if matid == "cement":
                     matid = "Cement"
                 if matid in items:
-                    item_name = get_string(alltext, "ITEM_NAME", matid)
+                    item_name = alltext.get_string( "ITEM_NAME", matid)
 
-                    item_desc = get_string(alltext, "ITEM_DESC", matid)
+                    item_desc = alltext.get_string( "ITEM_DESC", matid)
                     item_amount = matcount
                     build_cost[i] = {"item": item_name, "amount": item_amount}
                     pass
@@ -204,8 +203,8 @@ def build_full_building_data_json():
         output_building_data["needs_blueprint"] = None
         if value_object["BlueprintItemID"] != "None":
             print(value_object["BlueprintItemID"])
-            item_name = get_string(
-                alltext, "ITEM_NAME", value_object["BlueprintItemID"]
+            item_name = alltext.get_string(
+                "ITEM_NAME", value_object["BlueprintItemID"]
             )
             output_building_data["needs_blueprint"] = item_name
         if value_object["OverrideDescMsgID"] != "None":
@@ -258,7 +257,7 @@ def build_full_building_data_json():
 
         if key in mapobjectitemproduct:
             productval = mapobjectitemproduct[key]
-            item_product = get_string(alltext, "ITEM_NAME", productval["Product_Id"])
+            item_product = alltext.get_string( "ITEM_NAME", productval["Product_Id"])
             required_work = productval["RequiredWorkAmount"]
             output_building_data["item_production"] = {
                 "item_name": item_product,
