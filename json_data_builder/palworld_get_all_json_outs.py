@@ -1,0 +1,6 @@
+from palworld_building_data import build_full_building_data_json
+from palworld_item_data import build_full_item_data_json
+
+build_full_building_data_json()
+
+build_full_item_data_json()
