@@ -7,7 +7,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from config import constants
 from typing import List, Optional
 from pathlib import Path
-from builders.active_skill_infobox import (build_active_skill_infobox_model, render_active_skill_infobox)
+from builders.active_skill_infobox import build_active_skill_infobox_model_from_name
+from exports.export_active_skill_infoboxes import render_active_skill_infobox
 from utils.console_utils import force_utf8_stdout
 
 force_utf8_stdout()
@@ -82,7 +83,7 @@ def extract_element_from_infobox(infobox_wikitext: str) -> Optional[str]:
 def build_infobox_for_skill(skill_name: str) -> str:
     skill_name = normalize_title(skill_name)
 
-    model = build_active_skill_infobox_model(skill_name)
+    model = build_active_skill_infobox_model_from_name(skill_name)
     if not model:
         return ""
 
