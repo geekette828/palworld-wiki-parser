@@ -1,7 +1,9 @@
 This project includes a full, vendored version of Pywikibot inside the pwb/ folder. <br>
 There’s no need to install it separately or use it as a submodule.
 
-    💡 All Pywikibot commands should be run through the included pwb.ps1 launcher to ensure the correct environment is used.
+    💡 All Pywikibot commands should be run through the included launcher to ensure the correct
+    environment is used. Use `pwb.ps1` on Windows (PowerShell) and `pwb.sh` on Linux/macOS.
+    Both resolve their own location, so the repo can live in any directory.
 
 Update `pwb\user-config.py.sample` to `pwb\user-config.py`<br>
 Replace `YourUsernameHere` with your wiki.gg username.
@@ -14,7 +16,9 @@ Replace `YourBotPasswordHere` with the long unique hash for that specific bot na
     🚨🔐 DO NOT SHARE THIS PASSWORD WITH ANYONE. 🔐🚨
 
 Login to pywikibot useing the command:<br>
-`.\pwb.ps1 login`
+Windows: `.\pwb.ps1 login`<br>
+Linux/macOS: `./pwb.sh login`
 
 This means running any of the pywikibot parser scripts needs to have the full path.<br>
-`.\pwb.ps1 "U:\R-PATH\Sun Haven Parser\pywikibot_tools\compare_recipe.py"`
+Windows: `.\pwb.ps1 "N:\R-PATH\Palworld Parser\pywikibot_tools\compare_pages\compare_page_pal.py"`<br>
+Linux/macOS: `./pwb.sh "/path/to/palworld-wiki-parser/pywikibot_tools/compare_pages/compare_page_pal.py"`

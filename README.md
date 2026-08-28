@@ -43,6 +43,7 @@ Palworld Parser/
 │
 ├── pwb/                                    → Pywikibot engine (palworld.wiki.gg)
 │   ├── pwb.py
+│   ├── setup.py                            → Dependency manifest required by the pwb wrapper
 │   ├── pywikibot/
 │   ├── scripts/
 │   ├── families/
@@ -76,7 +77,8 @@ Palworld Parser/
 │   └── name_utils.py
 │
 ├── .gitignore
-├── pwb.ps1                                 → Recommended launcher for Pywikibot scripts
+├── pwb.ps1                                 → Pywikibot launcher (Windows / PowerShell)
+├── pwb.sh                                  → Pywikibot launcher (Linux / macOS)
 └── README.md
 ```
 
