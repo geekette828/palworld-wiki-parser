@@ -97,7 +97,8 @@ def load_datatable_json_tree(root_dir: str, AsUEObj=False):
 
         current = result
         for part in parts[:-1]:
-            print(parts)
+            pass
+            # print(parts)
         current = current.setdefault(parts[0], {})
 
         with json_file.open("r", encoding="utf-8") as f:
@@ -118,7 +119,50 @@ def load_datatable_json_tree(root_dir: str, AsUEObj=False):
                     else:
                         current[target["Name"]] = [target["Rows"]]
             else:
-                print(target["Type"], target["Name"])
+                pass
+                # print(target["Type"], target["Name"])
+
+    return result
+
+
+def load_data_asset_json_tree(root_dir: str, AsUEObj=False):
+    "Load ALL the DataTable json files detected from root_dir."
+    root = Path(root_dir)
+    result = {}
+
+    for json_file in root.rglob("*.json"):
+        relative = json_file.relative_to(root)
+        parts = list(relative.parts)
+
+        # Remove the .json extension
+        parts[-1] = json_file.stem
+
+        current = result
+        for part in parts[:-1]:
+            pass
+            # print(parts)
+        current = current.setdefault(parts[0], {})
+
+        with json_file.open("r", encoding="utf-8") as f:
+            # print(json_file)
+            target = json.load(f)[0]
+
+            if target["Type"] in ["DataTable", "CompositeDataTable"]:
+                if target["Name"] in current:
+                    current[target["Name"]].append(target["Rows"])
+                else:
+                    if AsUEObj:
+                        current[target["Name"]] = [
+                            {
+                                key: UnrealObject(**targ)
+                                for key, targ in target["Rows"].items()
+                            }
+                        ]
+                    else:
+                        current[target["Name"]] = [target["Rows"]]
+            else:
+                pass
+                # print(target["Type"], target["Name"])
 
     return result
 
@@ -130,8 +174,8 @@ def l10n_localization_importer(root_dir=""):
     # Get top-level language folders
     language_dirs = [p for p in root.iterdir() if p.is_dir()]
 
-    print(result.keys())
-    print([p.name for p in language_dirs])
+    # print(result.keys())
+    # print([p.name for p in language_dirs])
 
     for lang_dir in language_dirs:
         datatable_dir = lang_dir / "Pal" / "DataTable"
@@ -139,13 +183,38 @@ def l10n_localization_importer(root_dir=""):
         if not datatable_dir.is_dir():
             continue
 
-        print(f"Loading {datatable_dir}")
+        # print(f"Loading {datatable_dir}")
 
         result[lang_dir.name] = load_datatable_json_tree(datatable_dir)
 
-    print(result.keys())
+    # print(result.keys())
     return result
 
+def recursive_model_dump(value):
+    print(type(value))
+    if isinstance(value, BaseModel):
+        print("HERE!")
+        return recursive_model_dump(value.model_dump())
+
+    if isinstance(value, dict):
+        return {
+            key: recursive_model_dump(val)
+            for key, val in value.items()
+        }
+
+    if isinstance(value, list):
+        return [
+            recursive_model_dump(item)
+            for item in value
+        ]
+
+    if isinstance(value, tuple):
+        return [
+            recursive_model_dump(item)
+            for item in value
+        ]
+
+    return value
 
 def get_blueprint(blueprint_name, root_dir="./Blueprint") -> List[UnrealAsset]:
     """Looks for a blueprint json file with the name "blueprint_name"
@@ -160,5 +229,52 @@ def get_blueprint(blueprint_name, root_dir="./Blueprint") -> List[UnrealAsset]:
                 for bptype in inputv:
                     new.append(UnrealAsset(**bptype))
                 return new
+
+    return None
+
+def get_blueprint_with_internal_type(blueprint_name, root_dir="./Blueprint") -> List[UnrealAsset]:
+    """Looks for a blueprint json file with the name "blueprint_name"
+    in the Blueprint directory in root_dir"""
+    root = Path(root_dir)
+
+    for json_file in root.rglob("*.json"):
+
+        with json_file.open("r", encoding="utf-8") as f:
+            inputv = json.load(f)
+            new = []
+            theone=False
+            for bptype in inputv:
+                bp=UnrealAsset(**bptype)
+                #new.append()
+                if bp.Type==blueprint_name:
+                    return bp
+                    theone=True
+            if theone:
+                return new
+
+    return None
+
+
+def get_blueprint_with_internal_name(
+    blueprint_type,
+    filename,
+    root_dir="./Blueprint"
+) -> UnrealAsset | None:
+    """Looks for a blueprint JSON file matching the relative path."""
+
+    root = Path(root_dir)
+    target = root / f"{filename}.json"
+
+    if not target.is_file():
+        return None
+
+    with target.open("r", encoding="utf-8") as f:
+        inputv = json.load(f)
+
+    for bptype in inputv:
+        bp = UnrealAsset(**bptype)
+
+        if bp.Type == blueprint_type:
+            return bp
 
     return None

@@ -21,6 +21,8 @@ ATTR_RE = re.compile(r"(\w+)=\|([^|]*)\|")
 TAG_HANDLERS = {
     "mapObjectName": "MAPOBJECT_NAME",
     "MapObjectName": "MAPOBJECT_NAME",
+    "mapObjectname": "MAPOBJECT_NAME",
+    "characterName": "PAL_NAME",
     "characterName": "PAL_NAME",
     "itemName": "ITEM_NAME",
     "activeSkillName": "ACTION_SKILL",
@@ -42,7 +44,7 @@ def build_text_table(mega_dict: Dict[str, TextData]) -> Dict[str, TextDataChild]
     alltext = {}
     for t, v in mega_dict["Text"].items():
         for stringkey, data in v[0].items():
-            alltext[stringkey] = data["TextData"]
+            alltext[stringkey.lower()] = data["TextData"]
     return alltext
 
 
@@ -85,11 +87,12 @@ def buildup_text_tree(alltext: Dict[str, TextDataChild]):
     with open("tree.txt", "w", encoding="utf-8") as f:
         print_tree(organized, f)
 
+
 class TextTable:
     def __init__(self, mega_dict: Dict[str, TextData]):
         self.alltext = build_text_table(mega_dict)
 
-    def replace_tags(self, text):
+    def replace_tags(self, text,overriders):
         def repl(match):
             tag_name = match.group(1)
             attrs = dict(ATTR_RE.findall(match.group(2)))
@@ -115,36 +118,34 @@ class TextTable:
                 print(f"|{target}|")
                 # Example:
                 # <uiCommon id=|COMMON_ELEMENT_NAME_Fire| style=|Elem_Fire|/>
-                replacement = self.get_string("", target)
+                replacement = self.get_string("", target,overriders)
                 print(replacement)
                 return replacement if replacement else match.group(0)
 
             # Normal string lookup
             prefix = TAG_HANDLERS[tag_name]
 
-            replacement = self.get_string( prefix, target)
+            replacement = self.get_string(prefix, target,overriders)
 
             return replacement if replacement is not None else match.group(0)
 
         return TAG_RE.sub(repl, text)
 
-
-
-    def get_string(self, pre, target):
+    def get_string(self, pre, target, overriders={}):
         if target in known_text_subs:
             target = known_text_subs[target]
-        keypre = pre + "_" + target
+        keypre = (pre + "_" + target).lower()
         if not pre:
-            keypre = target
+            keypre = target.lower()
         # print(keypre)
+        if keypre.lower() in overriders:
+            keypre = overriders.get(keypre.lower()).lower()
         if keypre in self.alltext:
             targettext = self.alltext.get(keypre)["LocalizedString"]
-
-            inp = self.replace_tags(targettext)
-
+            inp = self.replace_tags(targettext,overriders)
             return inp.replace("\r\n", " ")
-
-        return None
+       
+            inp = self.replace_tags(targettext)
 
 
 if __name__ == "__main__":

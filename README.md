@@ -160,3 +160,34 @@ L10N/
 └── zh-Hant/
 ```
 Copy the `en` file folder and paste into `_input/PATCHNUMBER/` (INPUT_DIRECTORY).
+
+
+### Using the Palworld Data Extractor
+
+A data extractor that automatically loads in the required data from palworld is included for convienence.
+
+**1: Ensure you have the latest .NET Runtimes, they come with Visual Studio**
+
+
+2: Run the below command to build the executable.
+
+```
+
+dotnet publish ./tools/palworldextractor/PalUE4Exporter/PalUE4Exporter.csproj -c Release  --self-contained true -o  ./tools/palworldextractor/bin
+
+```
+
+3: Get the latest Mappings.usmap file at: https://github.com/PalworldModding/UsefulFiles
+
+4: Copy `pal_data_export.conf.example`, save the copy as `pal_data_export.conf` and enter:
+
+* `archive_dir`: the path to your Palworld `Paks` folder.
+* `mappings_file`: the path to the `Mappings.usmap` file you just downloaded from https://github.com/PalworldModding/UsefulFiles
+* `version`: the version/name to use for the extracted output.
+
+5: Run import_game_data.py, typically with;
+```
+python ./tools/palworldextractor/import_game_data.py
+```
+
+**This will take a while.**

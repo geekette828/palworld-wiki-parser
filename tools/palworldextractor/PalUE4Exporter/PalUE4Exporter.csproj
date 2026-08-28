@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+
+	  <!-- CUE4Parse only works with net 10.0. -->
+	  <OutputType>Exe</OutputType>
+	  <TargetFramework>net10.0</TargetFramework>
+	  <Nullable>enable</Nullable>
+	  <ImplicitUsings>enable</ImplicitUsings>
+	  <SelfContained>true</SelfContained>
+
+	  <PublishSingleFile>true</PublishSingleFile>
+	  <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+	  <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+
+	  <!-- Remove unused framework/library code
+	    disabled for now.
+	  <PublishTrimmed>true</PublishTrimmed>
+	  <TrimMode>full</TrimMode>
+	  -->
+	  <PublishReadyToRun>false</PublishReadyToRun>
+
+	  <DebugType>none</DebugType>
+	  <StartupObject>PalUE4Exporter.Program</StartupObject>
+
+  </PropertyGroup>
+	<ItemGroup>
+		<TrimmerRootAssembly Include="CUE4Parse" />
+		<TrimmerRootAssembly Include="CUE4Parse-Conversion" />
+		<TrimmerRootAssembly Include="MemoryPack.Core" />
+		<TrimmerRootAssembly Include="Newtonsoft.Json" />
+	</ItemGroup>
+
+	<ItemGroup>
+    <PackageReference Include="CUE4Parse" Version="1.2.2.202607" />
+    <PackageReference Include="CUE4Parse-Conversion" Version="1.2.2.202607" />
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.10" />
+	 <PackageReference Include="System.CommandLine" Version="2.*" />
+  </ItemGroup>
+
+
+</Project>

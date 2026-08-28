@@ -1,28 +1,39 @@
 # This script builds up a json data file for each item.
 
+from collections import defaultdict
 import json
 from pathlib import Path
+import re
 from typing import Any, Dict, List
 
 
 from palworld_data_load import (
     UnrealObject,
+    get_blueprint,
+    get_blueprint_with_internal_name,
+    get_blueprint_with_internal_type,
     l10n_localization_importer,
     load_datatable_json_tree,
+    recursive_model_dump,
 )
-from palworld_text_util import (
-    TextTable
-)
+from palworld_text_util import TextTable
 # Not dealing with configs and path inheritance
-#from config.name_map import RARITY_NAME_MAP
+# from config.name_map import RARITY_NAME_MAP
 
 # Define root input dir
-root_input_dir=r"_input/v1.0.1"
-blueprint_dir = root_input_dir+r"/Blueprint"
-mega_dict = load_datatable_json_tree(root_input_dir+r"/DataTable", AsUEObj=True)
+root_input_dir = r"_input/v1.0.1"
+blueprint_dir = root_input_dir + r"/Blueprint"
+
+dataasset_dir = root_input_dir + r"/DataAsset"
+
+export_dir = Path("./_output")
+export_dir.mkdir(exist_ok=True)
+
+
+mega_dict = load_datatable_json_tree(root_input_dir + r"/DataTable", AsUEObj=True)
 
 # Import localization
-lionlocal = l10n_localization_importer(root_input_dir+r"/L10N")
+lionlocal = l10n_localization_importer(root_input_dir + r"/L10N")
 
 # build alltext table.
 alltext = TextTable(lionlocal["en"])
@@ -33,14 +44,16 @@ RARITY_NAME_MAP = {
     2: "Rare",
     3: "Epic",
     4: "Legendary",
-
     "RARITY_COMMON": "Common",
     "RARITY_UNCOMMON": "Uncommon",
     "RARITY_RARE": "Rare",
     "RARITY_EPIC": "Epic",
     "RARITY_LEGENDARY": "Legendary",
 }
-
+name_blacklist=[]
+with open(root_input_dir+"/name_blacklist.txt", "r", encoding="utf-8") as f:
+    name_blacklist = [line.strip() for line in f if line.strip()]
+legal_overrides=["Zoe's Halloween Costume","Echoing Flute"]
 def _resolve_passive_skill_list(alltext, row: UnrealObject) -> str:
     ids = [
         row.PassiveSkillName,
@@ -174,46 +187,59 @@ def _build_consume_effect(
 
 
 def create_recipe(key: str, value: UnrealObject, recipes: Dict[str, UnrealObject]):
-    newrecipe = {}
-    if key in recipes:
-        print("has recipie", key)
+    newrecipelist = []
+    extra_rec=[]
+    for r,i in recipes.items():
+        pid=i.Product_Id
+        if pid.lower()==key.lower():
+         extra_rec.append(i)
+    print(extra_rec)
+    
+    if True:
 
-        recipe = recipes[key]
-        work_amount = recipe.WorkAmount
-        required_blueprint = recipe.UnlockItemID
-        prod_count = recipe.Product_Count
+        for recipe in extra_rec:
+            if key=="Accessory_Avoid_1":
+                print(recipe)
+            work_amount = recipe.WorkAmount
+            required_blueprint = recipe.UnlockItemID
+            prod_count = recipe.Product_Count
 
-        materials = []
-        for i in (1, 2, 3, 4, 5):
-            matid = recipe[f"Material{i}_Id"]
-            matcount = recipe[f"Material{i}_Count"]
-            print(matid)
-            if matid != "None" and matcount > 0:
-                name = alltext.get_string("ITEM_NAME", matid)
-                if name and name != "en Text":
-                    materials.append(f"{name}*{matcount}")
-                else:
-                    print(f"{matid}, {name}")
-                    input("Invalid Item detected!")
+            materials = []
+            for i in (1, 2, 3, 4, 5):
+                matid = recipe[f"Material{i}_Id"]
+                matcount = recipe[f"Material{i}_Count"]
+                print(matid)
+                if matid != "None" and matcount > 0:
+                    name = alltext.get_string("ITEM_NAME", matid)
+                    if name and name != "en Text":
+                        materials.append(f"{name}*{matcount}")
+                    else:
+                        print(f"{matid}, {name}")
+                        input("Invalid Item detected!")
 
-        craft_exp = recipe.CraftExpRate
+            craft_exp = recipe.CraftExpRate
 
-        newrecipe = {
-            "materials": materials,
-            "work_amount": work_amount,
-            "production_count": prod_count,
-            "craft_exp_rate": craft_exp,
-        }
-        if required_blueprint != "None":
-            newrecipe["required_schematic"] = alltext.get_string(
-               "ITEM_NAME", required_blueprint
-            )
+            newrecipe = {
+                "materials": materials,
+                "workload_to_craft": work_amount,
+                "production_count": prod_count,
+                "craft_exp_rate": craft_exp,
+            }
+            if required_blueprint != "None":
+                if key=="Accessory_Avoid_1":
+                    print(required_blueprint)
+                    #input()
+                newrecipe["required_schematic"] =  required_blueprint
+                
+            newrecipelist.append(newrecipe)
+            print(newrecipelist)
+            #input()
 
-    return newrecipe
+    return newrecipelist
 
 
-def handle_item_types(typea, typeb):
-    '''Estimate the filter type.'''
+def handle_item_types(key, typea, typeb):
+    """Estimate the filter type."""
     # Estimate filter type.
     filter_types = [
         "Weapons",
@@ -248,7 +274,17 @@ def handle_item_types(typea, typeb):
     # But I needed something readable for the time being.
     if typev == "Key Items":
         filter_type = "Key Items"
-        return "Key Items", "Key Item", "NA"
+        wiki_type="Key Item"
+        wiki_subtype="NA"
+        if "SkillUnlock_" in key:
+            wiki_subtype="Pal Gear"
+        elif "PalPassiveSkillChange_" in key:
+            wiki_subtype="Implant"
+        elif "Essential_BossReward" == typeb:
+            wiki_subtype="Boss Bounty Tokens"
+        elif typeb in ["Essential_UnlockPlayerFuture","Essential_Lamp","Essential_AdditionalInventory"]:
+            wiki_subtype="Player Upgrade"
+        #return "Key Items", "Key Item", "NA"
     if typea == "Ammo":
         filter_type = "Ammo"
         wiki_type = "Ammo"
@@ -347,10 +383,10 @@ def handle_item_types(typea, typeb):
             wiki_subtype = "Enhancement Item"
             filter_type = "Enhancement Items"
         if typeb == "ConsumePassiveSkillChange":
-            wiki_subtype = "Enhancement Item"
+            wiki_subtype = "Disposable Implant"
             filter_type = "Enhancement Items"
         if typeb == "ConsumePalWorkSuitabilityUp":
-            wiki_subtype = "Enhancement Item"
+            wiki_subtype = "Handbooks"
             filter_type = "Enhancement Items"
         if typeb == "ConsumePalGainFriendshipPoint":
             wiki_subtype = "Enhancement Item"
@@ -385,11 +421,47 @@ def handle_item_types(typea, typeb):
         if typeb == "ReturnToBaseCamp":
             wiki_subtype = "Other"
             filter_type = "Other Consumables"
+        if typeb == "ConsumeBandage":
+            wiki_subtype = "Illegal"
+            filter_type = "Illegal Consumables"
+            
     if not filter_type or not wiki_type or not wiki_subtype:
         print(f"{typea} with {typeb} NEEDS NEW TYPE CLASSIFICATION!")
-        input()
+
     return filter_type, wiki_type, wiki_subtype
 
+def has_html_tag(text: str):
+    # For estimating if an item is illegal.
+    return bool(re.search(r"<[A-Za-z][^>]*>", text))
+
+def convert_integer_floats(obj):
+    # For better diff comparing
+    if isinstance(obj, dict):
+        return {k: convert_integer_floats(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [convert_integer_floats(v) for v in obj]
+    if isinstance(obj, float) and obj.is_integer():
+        return int(obj)
+    return obj
+
+def recursive_blueprint_bullet_scanner(bp):
+    # Scan for bullets in bp heiarchy.
+    bullets=[]
+    print(bp)
+    if not bp.Properties:
+        return []
+    if bp.Properties.get('SupportedBulletMap',None):
+        for bullet in bp.Properties.SupportedBulletMap:
+            if bullet['Key']['Key'] not in bullets:
+                bullets.append(bullet['Key']['Key'])
+    if bullets:
+        return bullets
+    if bp.Parent:
+        extras=recursive_blueprint_bullet_scanner(bp.Parent)
+        for e in extras:
+            if e not in bullets:
+                bullets.append(e)
+    return bullets
 
 def build_full_item_data_json():
     items = mega_dict["Item"]["DT_ItemDataTable"][0]
@@ -400,11 +472,59 @@ def build_full_item_data_json():
     gain_work_suitability = mega_dict["Item"]["DT_GainWorkSuitabilityRankItem"][0]
 
     recipes = mega_dict["Item"]["DT_ItemRecipeDataTable"][0]
+    item_icons = mega_dict["Item"]["DT_ItemIconDataTable"][0]
     complete_item_json = {}
+
+    
+    static_item_data_asset={}
+    buildobjectcap = get_blueprint("DA_StaticItemDataAsset", root_dir=dataasset_dir)
+    for mc in buildobjectcap:
+        if "Properties" in mc:
+            key=mc.Properties['ID']
+            static_item_data_asset[key]=mc.Properties
+            if "actorClass" in mc.Properties:
+                actor=mc.Properties.actorClass
+                if actor:
+                    assetpathclass = actor["AssetPathName"].rsplit(".", 1)[-1]
+                    print(actor["AssetPathName"],assetpathclass)
+                    newpath=actor["AssetPathName"].replace("/Game/Pal/Blueprint/","")
+                    path = newpath.rsplit(".", 1)[0]
+                    static_item_data_asset[key].mybp=get_blueprint_with_internal_name(assetpathclass,filename=path,root_dir=blueprint_dir)
+                    thisbp= static_item_data_asset[key].mybp
+                    while "Template" in thisbp:
+                        
+                        if thisbp.Template:
+                            print(thisbp.Template)
+                            objname=thisbp.Template['ObjectName'].split("'")[0]
+                            objpath=thisbp.Template['ObjectPath'].split(".")[0]
+
+                            newpaths=objpath.replace("Pal/Content/Pal/Blueprint/","")
+                            nextbp=get_blueprint_with_internal_name(objname,filename=newpaths,root_dir=blueprint_dir)
+                            
+                            thisbp.Parent=nextbp
+                            thisbp=nextbp
+                        else:
+                            break
+
+    with open(export_dir / "item_assets.json", "w", encoding="utf-8") as f:
+        json.dump(recursive_model_dump(static_item_data_asset), f, indent=4, ensure_ascii=False)
+
+
+
+
+
+    realnameassigns={}
+    overriders={}
+    for key, value in items.items():
+        if value.OverrideName != "None":
+            #overriders[key] = alltext.get_string("", value.OverrideName)
+            overriders[('ITEM_NAME'+"_"+key.lower()).lower()]=value.OverrideName.lower()
+
+
+
     for key, value in items.items():
         value_object = value
-        # print(v.keys())
-        # print(v['TypeA'])
+
         # Get the itemtypes
         typename = value_object.TypeA.split("::")[-1]
         typenameb = value_object.TypeB.split("::")[-1]
@@ -413,21 +533,22 @@ def build_full_item_data_json():
         type = alltext.get_string(keypre, typename)
 
         if value_object.bLegalInGame is False:
-            continue
+            print(key, "not legal")
+
+            #continue
 
         # Name and description
-        name = alltext.get_string("ITEM_NAME", key)
-        desc = alltext.get_string("ITEM_DESC", key) or ""
+        name = alltext.get_string("ITEM_NAME", key,overriders)
+        desc = alltext.get_string("ITEM_DESC", key,overriders) or ""
         if value_object.OverrideName != "None":
-            name = alltext.get_string( "", value_object.OverrideName)
+            name = alltext.get_string("", value_object.OverrideName)
 
         if value_object.OverrideDescription != "None":
             print("overriding description...")
             print(name, desc, "target", value_object.OverrideDescription)
-            desc = alltext.get_string( "", value_object.OverrideDescription.strip())
+            desc = alltext.get_string("", value_object.OverrideDescription.strip(),overriders)
         if desc == None:
             print(f"at {key} ({name}), this item has no valid description!")
-            # input()
             continue
         print(name, desc.replace("\r\n", " "))
         if (
@@ -437,14 +558,16 @@ def build_full_item_data_json():
             and desc != "en Text"
         ):
             filter_type, wiki_type, wiki_subtype = handle_item_types(
-                typename, typenameb
+                key,                typename, typenameb
             )
             if key.startswith("SkillUnlock_"):
                 if wiki_type == "Key Item":
                     wiki_subtype = "Pal Gear"
 
         else:
+            print(f"at {key} ({name}), this item has no valid description or name!")
             continue
+
         item_output_dict = {
             "name": name,
             "description": desc,
@@ -459,8 +582,27 @@ def build_full_item_data_json():
             "rarity": RARITY_NAME_MAP.get(int(value_object.Rarity), "Common"),
             "sell": value_object["Price"],
             "sort_id": value_object.SortId,
-            # "key":key
+             "key":key,
+             "legal":value_object.bLegalInGame
         }
+
+        if not value_object.bLegalInGame:
+            item_output_dict['legal']=value_object.bLegalInGame
+        if name==desc:
+            print(f"at {key} ({name}), this item has identical name/descs!")
+            continue
+        if name.strip() in name_blacklist:
+            print(f"at {key} ({name}), this item is in the name blacklist!")
+            continue
+
+        if has_html_tag(desc):
+            print(f"at {key} ({name}), this item has an invalid description. ({desc})")
+            continue
+        realnameassigns[key.lower()]=name
+        if value_object.IconName in item_icons:
+            print(item_icons[value_object.IconName])
+            item_output_dict['icon']=item_icons[value_object.IconName]['Icon']['AssetPathName'].split(".")[-1]
+            #input()
 
         keys = [
             # core
@@ -526,10 +668,28 @@ def build_full_item_data_json():
 
         recipe = create_recipe(key, value_object, recipes)
 
+        # Extra data in assets
+        asset=static_item_data_asset.get(key,None)
+        if asset and 'mybp' in asset:
+            bp=asset['mybp']
+            if bp:
+                bullets=recursive_blueprint_bullet_scanner(bp)
+                if bullets:
+                    newb=[]
+                    for b in bullets:
+                        bullet_name = alltext.get_string("ITEM_NAME", b,overriders)
+                        newb.append(bullet_name)
+                    item_output_dict['bullets']=newb
+
+
+
         if recipe:
+            #print(recipe)
+            #nput()
             item_output_dict["recipe"] = recipe
         # item_output_dict["key"] = key
         # item_output_dict['nutrition']
+
         if (
             name is not None
             and desc is not None
@@ -538,11 +698,54 @@ def build_full_item_data_json():
         ):
             if name not in complete_item_json:
                 complete_item_json[name] = {}
-            complete_item_json[name][
-                RARITY_NAME_MAP.get(int(value_object["Rarity"]), "Common")
-            ] = item_output_dict
+            rarity=RARITY_NAME_MAP.get(int(value_object["Rarity"]), "Common")
+            if rarity in complete_item_json[name]:
+                print("WHAT?!")
+                if not value_object.bLegalInGame:
+                    continue
+                
+            complete_item_json[name][rarity] = item_output_dict
 
     final_item_json = {}
+    rec_schematic_map={}
+    print(realnameassigns)
+    #Schematic handling.
+    badnames=[]
+    bad_schematics=[]
+    with open("realnames.json", "w", encoding="utf-8") as f:
+        json.dump(realnameassigns, f, indent=4, ensure_ascii=False)
+    for k, var in complete_item_json.items():
+        for rar, v in var.items():
+            if 'recipe' in v:
+                removethese=[]
+                for e,r in enumerate(v.get('recipe',[])):
+                    if "required_schematic" in r and r.get("required_schematic",None) is not None:
+                        donotadd=False
+                        for m in r['materials']:
+                            if r['required_schematic'] in m:
+                                donotadd = True
+                        if not donotadd:
+                            schematicid=r['required_schematic'].lower()
+                            if schematicid in realnameassigns:
+                                print(realnameassigns.get(schematicid,schematicid))
+                                realname=realnameassigns.get(schematicid,schematicid)
+                                print(v['name'],v['legal'],v.keys())
+                                
+                                if v['legal'] or v['name'] in legal_overrides:
+
+                                    rec_schematic_map[realname]=k
+                                    v['recipe'][e]['required_schematic']=realname
+                                    print(v['recipe'][e])
+                                else:
+                                    print("THIS IS A BAD NAME!")
+                                    input()
+                                    bad_schematics.append(realname)
+                            else:
+                                removethese.append(e)
+                v['recipe'] = [
+                    r for i, r in enumerate(v['recipe'])
+                    if i not in removethese
+                ]                         
 
     for name, rarities in complete_item_json.items():
         rarity_names = list(rarities.keys())
@@ -580,11 +783,30 @@ def build_full_item_data_json():
             final_item_json[name]["sort_id"] = result["variants"][keys]["sort_id"]
 
     # Export to _output
-    export_dir = Path("./_output")
-    export_dir.mkdir(exist_ok=True)
 
+    print(rec_schematic_map)
+    for k, v in rec_schematic_map.items():
+        willbuild={
+            'build_type':final_item_json[v]['filter_type'],
+            'item':v
+        }
+        final_item_json[k]['willbuild']=willbuild
+
+    build_schematic_map={}
+    with open("./_output/building_data.json", "r", encoding="utf-8") as f:
+        buildingdata = json.load(f)
+
+    for k, v in buildingdata.items():
+        if v['needs_blueprint']:
+
+            build_schematic_map[v['needs_blueprint']]=k
+
+    final_item_json=convert_integer_floats(final_item_json)
     with open(export_dir / "item_data.json", "w", encoding="utf-8") as f:
         json.dump(final_item_json, f, indent=4, ensure_ascii=False)
+    print("----")
+    for b in bad_schematics:
+        print(b)
 
 
 if __name__ == "__main__":
