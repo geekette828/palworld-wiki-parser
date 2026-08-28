@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 Palworld Workspace.code-workspace
 .gitignore
+.claude
 
 _input/
 _output/

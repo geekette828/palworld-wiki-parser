@@ -8,15 +8,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from config import constants
 from typing import Dict, List, Optional, Tuple, Any, TypedDict
 from config.name_map import WORK_SUITABILITY_MAP, ELEMENT_NAME_MAP
-from config.partner_skill_icon_map import PARTNER_SKILL_ICON_RULES
 from utils.json_datatable_utils import extract_datatable_rows
-from utils.english_text_utils import EnglishText, clean_english_text
+from utils.english_text_utils import EnglishText
+
 
 #Paths
 param_input_file = os.path.join(constants.INPUT_DIRECTORY, "Character", "DT_PalMonsterParameter.json")
 active_skill_input_file = os.path.join(constants.INPUT_DIRECTORY, "Waza", "DT_WazaMasterLevel.json")
-pal_activate_text_input_file = constants.EN_PAL_ACTIVATE_FILE
-partner_skill_name_text_input_file = constants.EN_SKILL_NAME_FILE
+
 
 #Mapping
 STATS_MAP = {
@@ -67,13 +66,6 @@ ALPHA_ELIGIBLE_PARAMS = {
     "capture_rate",
 }
 
-_ITEMNAME_TAG_RE = re.compile(r"<itemName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
-_MAPOBJECTNAME_TAG_RE = re.compile(r"<mapObjectName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
-_ACTIVESKILLNAME_TAG_RE = re.compile(r"<activeSkillName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
-_UICOMMON_TAG_RE = re.compile(r"<uiCommon\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
-_CHARACTERNAME_TAG_RE = re.compile(r"<characterName\s+id=\|([^|]+)\|/?>", re.IGNORECASE)
-
-
 
 def normalize_element(element: Any) -> str:
     if not element:
@@ -81,12 +73,14 @@ def normalize_element(element: Any) -> str:
     e = str(element).strip()
     return ELEMENT_NAME_MAP.get(e, e)
 
+
 def bool_to_yes_no(v: Any) -> str:
     if v is True:
         return "True"
     if v is False:
         return "False"
     return ""
+
 
 def sell_price_from_buy(v: Any) -> str:
     if v is None:
@@ -96,10 +90,12 @@ def sell_price_from_buy(v: Any) -> str:
     except (TypeError, ValueError):
         return ""
 
+
 def load_rows(path: str, *, source: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
     return extract_datatable_rows(data, source=source)
+
 
 def fmt(v: Any) -> str:
     if v is None:
@@ -107,6 +103,7 @@ def fmt(v: Any) -> str:
     if isinstance(v, float):
         return repr(v)
     return str(v)
+
 
 def after_double_colon(v: Any) -> str:
     if v is None:
@@ -116,24 +113,6 @@ def after_double_colon(v: Any) -> str:
         return s.split("::", 1)[1]
     return s
 
-def _textdata_string(row: Any) -> str:
-    if not isinstance(row, dict):
-        return ""
-    td = row.get("TextData")
-    if not isinstance(td, dict):
-        return ""
-
-    s = td.get("LocalizedString")
-    if s is None or str(s).strip() == "":
-        s = td.get("SourceString")
-
-    return "" if s is None else str(s)
-
-def _lookup_text(rows: dict, key: str) -> str:
-    if not rows or not key:
-        return ""
-    row = rows.get(key)
-    return _textdata_string(row).strip()
 
 def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
     if zukan_index is None:
@@ -153,6 +132,7 @@ def zukan_no(zukan_index: Any, zukan_suffix: Any) -> str:
         return base
     return f"{base}{suf}"
 
+
 def collect_passives(row: dict, en: EnglishText) -> List[str]:
     passives = []
     for i in range(1, 5):
@@ -165,6 +145,7 @@ def collect_passives(row: dict, en: EnglishText) -> List[str]:
             continue
         passives.append(en.get_passive_name(s) or s)
     return passives
+
 
 def build_work_suitability(row: dict) -> str:
     parts = []
@@ -180,6 +161,7 @@ def build_work_suitability(row: dict) -> str:
             continue
         parts.append(f"{label}@{n}")
     return "; ".join(parts)
+
 
 def build_waza_master_index(waza_rows: dict) -> Dict[str, List[Tuple[int, str]]]:
     by_pal_id: Dict[str, List[Tuple[int, str]]] = {}
@@ -210,6 +192,7 @@ def build_waza_master_index(waza_rows: dict) -> Dict[str, List[Tuple[int, str]]]
         items.sort(key=lambda x: (x[0], x[1].lower()))
     return by_pal_id
 
+
 def build_active_skills(monster_row_key: str, monster_row: dict, waza_by_pal_id: dict, en: EnglishText) -> str:
     if not isinstance(monster_row, dict):
         return ""
@@ -237,6 +220,7 @@ def build_active_skills(monster_row_key: str, monster_row: dict, waza_by_pal_id:
         for (lvl, skill) in skills
     )
 
+
 def build_pal_order(rows: dict) -> List[str]:
     pal_order = []
     for key, row in rows.items():
@@ -259,90 +243,6 @@ def build_pal_order(rows: dict) -> List[str]:
     pal_order.sort(key=lambda x: (int(x[0][:3]), x[0][3:]))
     return [base for _, base in pal_order]
 
-def _replace_charactername_tags(text: str, english: EnglishText) -> str:
-    s = str(text or "")
-
-    def repl(m: re.Match) -> str:
-        pal_id = (m.group(1) or "").strip()
-        pal_name = english.get_pal_name(pal_id) or pal_id
-        return pal_name
-
-    return _CHARACTERNAME_TAG_RE.sub(repl, s)
-
-def _replace_item_and_object_tags(text: str, english: EnglishText) -> str:
-    s = str(text or "")
-
-    def item_repl(m: re.Match) -> str:
-        item_id = (m.group(1) or "").strip()
-        return english.get_item_name(item_id) or item_id
-
-    def object_repl(m: re.Match) -> str:
-        obj_id = (m.group(1) or "").strip()
-
-        if obj_id == "MonsterFarm":
-            return "the ranch"
-
-        return obj_id
-
-    s = _ITEMNAME_TAG_RE.sub(item_repl, s)
-    s = _MAPOBJECTNAME_TAG_RE.sub(object_repl, s)
-    return s
-
-def _replace_activeskillname_tags(text: str, english: EnglishText) -> str:
-    s = str(text or "")
-
-    def repl(m: re.Match) -> str:
-        skill_id = (m.group(1) or "").strip()
-        return english.get_active_skill_name(skill_id) or skill_id
-
-    return _ACTIVESKILLNAME_TAG_RE.sub(repl, s)
-
-def _replace_uicommon_tags(text: str, english: EnglishText) -> str:
-    s = str(text or "")
-
-    def repl(m: re.Match) -> str:
-        key = (m.group(1) or "").strip()
-        # COMMON_STATUS_HP -> "Health", etc.
-        return english.get(constants.EN_COMMON_TEXT_FILE, key) or key
-
-    return _UICOMMON_TAG_RE.sub(repl, s)
-
-def resolve_partner_skill_icon(desc: Any) -> str:
-    s = str(desc or "").strip().lower()
-    if s == "":
-        return ""
-
-    s = re.sub(r"\s+", " ", s)
-
-    for icon_name, required_phrases, banned_phrases in (PARTNER_SKILL_ICON_RULES or []):
-        if not icon_name:
-            continue
-
-        required_ok = True
-        for phrase in (required_phrases or []):
-            p = str(phrase or "").strip().lower()
-            if p == "":
-                continue
-            if p not in s:
-                required_ok = False
-                break
-        if not required_ok:
-            continue
-
-        banned_hit = False
-        for phrase in (banned_phrases or []):
-            p = str(phrase or "").strip().lower()
-            if p == "":
-                continue
-            if p in s:
-                banned_hit = True
-                break
-        if banned_hit:
-            continue
-
-        return str(icon_name).strip()
-
-    return ""
 
 class PalInfoboxModel(TypedDict, total=False):
     base_id: str
@@ -353,10 +253,6 @@ class PalInfoboxModel(TypedDict, total=False):
     ele1: str
     ele2: str
     pal_size: str
-
-    partner_skill_name: str
-    partner_skill_desc: str
-    partner_skill_icon: str
 
     pal_gear: str
     work_suitability: str
@@ -371,14 +267,13 @@ class PalInfoboxModel(TypedDict, total=False):
     stats: Dict[str, str]
     alpha_stats: Dict[str, str]
 
+
 def build_pal_infobox_model_by_id(
     base: str,
     *,
     rows: dict,
     waza_by_pal_id: dict,
     en: EnglishText,
-    pal_activate_rows: dict,
-    partner_skill_name_rows: dict,
 ) -> PalInfoboxModel:
     normal = rows.get(base)
     boss = rows.get(f"BOSS_{base}")
@@ -397,22 +292,6 @@ def build_pal_infobox_model_by_id(
 
     size_raw = normal.get("Size")
     pal_size = after_double_colon(size_raw) if size_raw else ""
-
-    partner_skill_name_key = f"PARTNERSKILL_{base}"
-    partner_skill_name = _lookup_text(partner_skill_name_rows, partner_skill_name_key)
-
-    partner_skill_desc_key = f"PAL_FIRST_SPAWN_DESC_{base}"
-    partner_skill_desc_raw = _lookup_text(pal_activate_rows, partner_skill_desc_key)
-    partner_skill_desc_raw = _replace_charactername_tags(partner_skill_desc_raw, en)
-    partner_skill_desc_raw = _replace_item_and_object_tags(partner_skill_desc_raw, en)
-    partner_skill_desc_raw = _replace_activeskillname_tags(partner_skill_desc_raw, en)
-    partner_skill_desc_raw = _replace_uicommon_tags(partner_skill_desc_raw, en)
-
-    partner_skill_desc = (
-        clean_english_text(partner_skill_desc_raw).replace("\r", "").replace("\n", " ").strip()
-    )
-
-    partner_skill_icon = resolve_partner_skill_icon(partner_skill_desc)
 
     passives = collect_passives(normal, en)
     passive_skills = "; ".join(passives) if passives else ""
@@ -439,9 +318,6 @@ def build_pal_infobox_model_by_id(
         "ele1": ele1,
         "ele2": ele2,
         "pal_size": pal_size,
-        "partner_skill_name": partner_skill_name,
-        "partner_skill_desc": partner_skill_desc,
-        "partner_skill_icon": partner_skill_icon,
         "pal_gear": "",
         "work_suitability": build_work_suitability(normal),
         "hunger": fmt(normal.get("FoodAmount")),
@@ -455,12 +331,10 @@ def build_pal_infobox_model_by_id(
 
     return model
 
+
 def build_all_pal_infobox_models() -> List[Tuple[str, PalInfoboxModel]]:
     rows = load_rows(param_input_file, source="DT_PalMonsterParameter")
     waza_rows = load_rows(active_skill_input_file, source="DT_WazaMasterLevel")
-
-    pal_activate_rows = load_rows(pal_activate_text_input_file, source="DT_PalFirstActivatedInfoText")
-    partner_skill_name_rows = load_rows(partner_skill_name_text_input_file, source="DT_SkillNameText_Common")
 
     waza_by_pal_id = build_waza_master_index(waza_rows)
     en = EnglishText()
@@ -474,8 +348,6 @@ def build_all_pal_infobox_models() -> List[Tuple[str, PalInfoboxModel]]:
             rows=rows,
             waza_by_pal_id=waza_by_pal_id,
             en=en,
-            pal_activate_rows=pal_activate_rows,
-            partner_skill_name_rows=partner_skill_name_rows,
         )
         if model:
             out.append((model.get("display_name", base), model))

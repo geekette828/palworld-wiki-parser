@@ -13,6 +13,7 @@ from utils.json_datatable_utils import extract_datatable_rows
 
 #Paths
 waza_input_file = os.path.join(constants.INPUT_DIRECTORY, "Waza", "DT_WazaDataTable.json")
+waza_master_level_file = os.path.join(constants.INPUT_DIRECTORY, "Waza", "DT_WazaMasterLevel.json")
 item_input_file = os.path.join(constants.INPUT_DIRECTORY, "Item", "DT_ItemDataTable.json")
 en_name_file = constants.EN_SKILL_NAME_FILE
 en_description_file = constants.EN_SKILL_DESC_FILE
@@ -22,6 +23,15 @@ _CHARACTERNAME_TAG_RE = re.compile(r"<characterName\s+id=\|([^|]+)\|/?>", re.IGN
 
 _CACHED_WAZA_ROWS: Optional[Dict[str, Dict[str, Any]]] = None
 _CACHED_SKILL_IDS_WITH_SKILLCARDS: Optional[set[str]] = None
+_CACHED_PAL_IDS_BY_SKILL_ID: Optional[Dict[str, List[str]]] = None
+
+# Untranslated rows in the English name table fall back to this placeholder.
+_PLACEHOLDER_SKILL_NAMES = {"en text"}
+
+# Pal id decorations that point back at a base pal (alphas, tower/raid bosses, predators,
+# oil rig variants, mount/summon copies). Stripped only when the decorated id has no name.
+_PAL_ID_PREFIX_RE = re.compile(r"^(?:BOSS|PREDATOR|GYM|RAID|SUMMON)_", re.IGNORECASE)
+_PAL_ID_SUFFIX_RE = re.compile(r"(?:_(?:2|MAX|Avatar|Otomo|Oilrig|Hand_Left|Hand_Right))+$", re.IGNORECASE)
 
 class ActiveSkillInfoboxModel(TypedDict, total=False):
     skill_id: str
@@ -35,7 +45,9 @@ class ActiveSkillInfoboxModel(TypedDict, total=False):
     chance: str
     status2: str
     chance2: str
+    unique_to: List[str]
     fruit: bool
+    inherited: bool
 
 def _replace_charactername_tags(text: str, english: EnglishText) -> str:
     s = str(text or "")
@@ -108,6 +120,71 @@ def _load_skill_ids_with_skillcards() -> set[str]:
 
     _CACHED_SKILL_IDS_WITH_SKILLCARDS = skill_ids
     return _CACHED_SKILL_IDS_WITH_SKILLCARDS
+
+
+def _load_pal_ids_by_skill_id() -> Dict[str, List[str]]:
+    """Map each skill id to the pal ids that learn it naturally, in data-table order."""
+    global _CACHED_PAL_IDS_BY_SKILL_ID
+    if _CACHED_PAL_IDS_BY_SKILL_ID is not None:
+        return _CACHED_PAL_IDS_BY_SKILL_ID
+
+    data = _load_json(waza_master_level_file)
+    rows = extract_datatable_rows(data, source=os.path.basename(waza_master_level_file)) or {}
+
+    mapping: Dict[str, List[str]] = {}
+
+    for _, row in rows.items():
+        if not isinstance(row, dict):
+            continue
+
+        waza = _trim(row.get("WazaID"))
+        if not waza.startswith("EPalWazaID::"):
+            continue
+
+        skill_id = waza.split("::", 1)[1].strip()
+        pal_id = _trim(row.get("PalId"))
+        if not skill_id or not pal_id:
+            continue
+
+        bucket = mapping.setdefault(skill_id, [])
+        if pal_id not in bucket:
+            bucket.append(pal_id)
+
+    _CACHED_PAL_IDS_BY_SKILL_ID = mapping
+    return _CACHED_PAL_IDS_BY_SKILL_ID
+
+
+def _resolve_pal_display_name(pal_id: str, english: EnglishText) -> str:
+    """Resolve a pal id to its English name, falling back to the base pal for variant ids."""
+    candidate = _trim(pal_id)
+
+    while candidate:
+        name = english.get_pal_name(candidate)
+        if name:
+            return name
+
+        stripped = _PAL_ID_PREFIX_RE.sub("", candidate)
+        stripped = _PAL_ID_SUFFIX_RE.sub("", stripped)
+
+        if stripped == candidate:
+            return ""
+
+        candidate = stripped
+
+    return ""
+
+
+def _build_unique_to(skill_id: str, english: EnglishText) -> List[str]:
+    """Pals a skill is exclusive to: only skills that cannot be inherited or bought as a fruit."""
+    pal_ids = _load_pal_ids_by_skill_id().get(skill_id, [])
+
+    names: List[str] = []
+    for pal_id in pal_ids:
+        name = _resolve_pal_display_name(pal_id, english)
+        if name and name not in names:
+            names.append(name)
+
+    return names
 
 
 def _build_status_and_chance(row: Dict[str, Any]) -> list[tuple[str, str]]:
@@ -231,6 +308,14 @@ def _build_active_skill_infobox_model_from_skill_id(
         return {}
 
     has_fruit = skill_id in fruit_ids
+
+    # IgnoreRandomInherit is the game's flag for "never handed down at random":
+    # true means the skill cannot be bred onto a child.
+    is_inheritable = not bool(row.get("IgnoreRandomInherit"))
+
+    # A skill is exclusive when it can be reached neither by breeding nor by a skill fruit.
+    unique_to = [] if (is_inheritable or has_fruit) else _build_unique_to(skill_id, english)
+
     display_name = english.get_active_skill_name(skill_id) or _trim(skill_id)
 
     desc_key = f"ACTION_SKILL_{skill_id}"
@@ -252,7 +337,9 @@ def _build_active_skill_infobox_model_from_skill_id(
         "ct": ct,
         "power": power,
         "range": rng,
+        "unique_to": unique_to,
         "fruit": bool(has_fruit),
+        "inherited": is_inheritable,
     }
 
     if status_pairs:
@@ -296,21 +383,43 @@ def build_active_skill_infobox_model_from_name(english_skill_name: str) -> Activ
     )
 
 
+def _iter_active_skill_ids(english: EnglishText) -> List[str]:
+    """Every skill id present in the English name table, deduped by id (not by display name)."""
+    raw = _load_json(en_name_file)
+    rows = extract_datatable_rows(raw, source=os.path.basename(en_name_file)) or {}
+
+    skill_ids: List[str] = []
+    seen: set[str] = set()
+    prefixes = ["ACTION_SKILL_", "COOP_", "ACTIVE_"]
+
+    for prefix in prefixes:
+        for key in rows.keys():
+            if not str(key).startswith(prefix):
+                continue
+
+            skill_id = str(key)[len(prefix):].strip()
+            if not skill_id or skill_id in seen:
+                continue
+
+            name = english.get_active_skill_name(skill_id)
+            if not name or name.strip().casefold() in _PLACEHOLDER_SKILL_NAMES:
+                continue
+
+            seen.add(skill_id)
+            skill_ids.append(skill_id)
+
+    return skill_ids
+
+
 def build_all_active_skill_infobox_models() -> List[Tuple[str, ActiveSkillInfoboxModel]]:
     english = EnglishText()
     waza_rows = _load_waza_rows()
     fruit_ids = _load_skill_ids_with_skillcards()
 
-    name_to_id = _build_english_name_to_id_map(english)
-
-    id_to_display: Dict[str, str] = {}
-    for _, skill_id in name_to_id.items():
-        if skill_id not in id_to_display:
-            id_to_display[skill_id] = english.get_active_skill_name(skill_id) or ""
-
     out: List[Tuple[str, ActiveSkillInfoboxModel]] = []
 
-    for skill_id, display_name in id_to_display.items():
+    # Iterate by skill id so skills that share a display name are all exported.
+    for skill_id in _iter_active_skill_ids(english):
         model = _build_active_skill_infobox_model_from_skill_id(
             skill_id,
             english=english,
@@ -318,7 +427,41 @@ def build_all_active_skill_infobox_models() -> List[Tuple[str, ActiveSkillInfobo
             fruit_ids=fruit_ids,
         )
         if model:
-            out.append((display_name or model.get("display_name", ""), model))
+            out.append((model.get("display_name", ""), model))
 
-    out.sort(key=lambda x: (x[0] or "").casefold())
+    out.sort(key=lambda x: ((x[0] or "").casefold(), x[1].get("skill_id", "")))
     return out
+
+
+def list_placeholder_named_skill_ids() -> List[str]:
+    """Skills that exist in the Waza table but have no translated name yet."""
+    english = EnglishText()
+    waza_rows = _load_waza_rows()
+
+    raw = _load_json(en_name_file)
+    rows = extract_datatable_rows(raw, source=os.path.basename(en_name_file)) or {}
+
+    out: List[str] = []
+    seen: set[str] = set()
+
+    for key in rows.keys():
+        for prefix in ("ACTION_SKILL_", "COOP_", "ACTIVE_"):
+            if not str(key).startswith(prefix):
+                continue
+
+            skill_id = str(key)[len(prefix):].strip()
+            if not skill_id or skill_id in seen:
+                continue
+
+            name = english.get_active_skill_name(skill_id)
+            if not name or name.strip().casefold() not in _PLACEHOLDER_SKILL_NAMES:
+                continue
+
+            if not _find_waza_row_for_skill_id(waza_rows, skill_id):
+                continue
+
+            seen.add(skill_id)
+            out.append(skill_id)
+            break
+
+    return sorted(out)

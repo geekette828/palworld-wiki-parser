@@ -4,14 +4,20 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from config import constants
-from typing import List
+from typing import List, Dict
 from utils.console_utils import force_utf8_stdout
-from builders.pal_infobox import (build_all_pal_infobox_models, PalInfoboxModel, STATS_MAP, ALPHA_ELIGIBLE_PARAMS)
+from builders.pal_infobox import (
+    build_all_pal_infobox_models,
+    PalInfoboxModel,
+    STATS_MAP,
+    ALPHA_ELIGIBLE_PARAMS,
+)
+from builders.pal_partner_skill import build_all_partner_skill_models, PartnerSkillModel
+
 force_utf8_stdout()
 
 #Paths
 output_file = os.path.join(constants.OUTPUT_DIRECTORY, "Wiki Formatted", "pal_infobox.txt")
-
 
 
 def write_text(path: str, text: str) -> None:
@@ -22,12 +28,20 @@ def write_text(path: str, text: str) -> None:
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)
 
-def render_pal_infobox(model: PalInfoboxModel, *, include_header: bool = True) -> str:
+
+def render_pal_infobox(
+    model: PalInfoboxModel,
+    *,
+    partner_skill_by_id: Dict[str, PartnerSkillModel],
+    include_header: bool = True,
+) -> str:
     if not model:
         return ""
 
     base_id = (model.get("base_id") or "").strip()
     display_name = (model.get("display_name") or base_id).strip()
+
+    partner = partner_skill_by_id.get(base_id) or {}
 
     lines: List[str] = []
 
@@ -41,9 +55,9 @@ def render_pal_infobox(model: PalInfoboxModel, *, include_header: bool = True) -
     lines.append(f"|ele2 = {model.get('ele2', '')}")
     lines.append(f"|pal_size = {model.get('pal_size', '')}")
 
-    lines.append(f"|partner_skill_name = {model.get('partner_skill_name', '')}")
-    lines.append(f"|partner_skill_desc = {model.get('partner_skill_desc', '')}")
-    lines.append(f"|partner_skill_icon = {model.get('partner_skill_icon', '')}")
+    lines.append(f"|partner_skill_name = {partner.get('partner_skill_name', '')}")
+    lines.append(f"|partner_skill_desc = {partner.get('partner_skill_desc', '')}")
+    lines.append(f"|partner_skill_icon = {partner.get('partner_skill_icon', '')}")
 
     lines.append("|pal_gear = ")
     lines.append(f"|work_suitability = {model.get('work_suitability', '')}")
@@ -75,9 +89,21 @@ def render_pal_infobox(model: PalInfoboxModel, *, include_header: bool = True) -
 def build_all_pal_infoboxes_text(*, include_headers: bool = True) -> str:
     items = build_all_pal_infobox_models()
 
+    pal_ids = []
+    for _, model in items:
+        base_id = (model.get("base_id") or "").strip()
+        if base_id != "":
+            pal_ids.append(base_id)
+
+    partner_skill_by_id = build_all_partner_skill_models(pal_ids=pal_ids)
+
     blocks: List[str] = []
     for _, model in items:
-        block = render_pal_infobox(model, include_header=include_headers)
+        block = render_pal_infobox(
+            model,
+            partner_skill_by_id=partner_skill_by_id,
+            include_header=include_headers,
+        )
         if block:
             blocks.append(block)
             blocks.append("\n")
